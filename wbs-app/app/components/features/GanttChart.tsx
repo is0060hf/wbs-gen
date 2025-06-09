@@ -152,77 +152,40 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       return { left: '0%', width: '1%' };
     }
 
+    // ガントチャート全体の期間（表示されている範囲）
+    const chartStart = new Date(displayDates[0]);
+    const chartEnd = new Date(displayDates[displayDates.length - 1]);
+    
+    // ビューモードに応じた単位期間を取得
     const unitDays = getUnitDays();
-
-    // タスクの開始位置を計算（displayDates配列のインデックスベース）
-    let startColumnIndex = -1;
-    let endColumnIndex = -1;
-
-    for (let i = 0; i < displayDates.length; i++) {
-      const columnStart = new Date(displayDates[i]);
-      const columnEnd = new Date(columnStart);
-      columnEnd.setDate(columnStart.getDate() + unitDays - 1);
-
-      // タスク開始日がこのカラムに含まれるかチェック
-      if (startColumnIndex === -1 && taskStart >= columnStart && taskStart <= columnEnd) {
-        startColumnIndex = i;
-      }
-
-      // タスク終了日がこのカラムに含まれるかチェック
-      if (taskEnd >= columnStart && taskEnd <= columnEnd) {
-        endColumnIndex = i;
-      }
-
-      // タスク開始日がこのカラムより前の場合
-      if (startColumnIndex === -1 && taskStart < columnStart) {
-        startColumnIndex = Math.max(0, i - 1);
-      }
-
-      // タスク終了日がこのカラムより後の場合
-      if (taskEnd > columnEnd && i === displayDates.length - 1) {
-        endColumnIndex = i;
-      }
-    }
-
-    // インデックスが見つからない場合のフォールバック
-    if (startColumnIndex === -1) {
-      startColumnIndex = taskStart < displayDates[0] ? 0 : displayDates.length - 1;
-    }
-    if (endColumnIndex === -1) {
-      endColumnIndex = taskEnd > displayDates[displayDates.length - 1] ? displayDates.length - 1 : 0;
-    }
-
-    // 開始カラム内での詳細な位置計算
-    const startColumn = displayDates[startColumnIndex];
-    const startColumnEnd = new Date(startColumn);
-    startColumnEnd.setDate(startColumn.getDate() + unitDays - 1);
     
-    const startDivisor = (startColumnEnd.getTime() - startColumn.getTime()) || 1;
-    const taskStartInColumn = Math.max(0, Math.min(1, 
-      (taskStart.getTime() - startColumn.getTime()) / startDivisor
-    ));
-
-    // 終了カラム内での詳細な位置計算
-    const endColumn = displayDates[endColumnIndex];
-    const endColumnEnd = new Date(endColumn);
-    endColumnEnd.setDate(endColumn.getDate() + unitDays - 1);
+    // チャートの最終日を正確に計算
+    const chartEndAdjusted = new Date(chartEnd);
+    chartEndAdjusted.setDate(chartEnd.getDate() + unitDays - 1);
     
-    const endDivisor = (endColumnEnd.getTime() - endColumn.getTime()) || 1;
-    const taskEndInColumn = Math.max(0, Math.min(1, 
-      (taskEnd.getTime() - endColumn.getTime()) / endDivisor
-    ));
-
-    // パーセンテージに変換
-    const totalColumns = displayDates.length;
-    const columnWidth = 100 / totalColumns;
+    // ガントチャート全体の日数を計算
+    const chartTotalDays = (chartEndAdjusted.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000) + 1;
     
-    const left = (startColumnIndex + taskStartInColumn) * columnWidth;
-    const right = (endColumnIndex + taskEndInColumn) * columnWidth;
-    const width = Math.max(columnWidth * 0.1, right - left); // 最小幅を確保
-
+    // タスクの実際の日数を計算
+    const taskDurationDays = (taskEnd.getTime() - taskStart.getTime()) / (24 * 60 * 60 * 1000) + 1;
+    
+    // タスク開始位置の計算（チャート開始日からの日数）
+    const startOffsetDays = Math.max(0, (taskStart.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000));
+    
+    // タスクの開始位置と幅をパーセンテージで計算
+    const left = (startOffsetDays / chartTotalDays) * 100;
+    const width = (taskDurationDays / chartTotalDays) * 100;
+    
+    // 表示範囲外のタスクの処理
+    const effectiveLeft = Math.max(0, left);
+    const effectiveWidth = Math.min(100 - effectiveLeft, width);
+    
+    // 最小幅の確保（非常に短いタスクでも見えるように）
+    const minWidth = 0.5; // 0.5%の最小幅
+    
     return {
-      left: `${Math.max(0, left)}%`,
-      width: `${width}%`
+      left: `${effectiveLeft}%`,
+      width: `${Math.max(minWidth, effectiveWidth)}%`
     };
   }, [displayDates, getUnitDays]);
 
