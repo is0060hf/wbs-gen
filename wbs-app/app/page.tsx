@@ -7,7 +7,7 @@ import { DragDropProvider } from '@/app/components/ui/DragDropContext';
 import { ProjectInfo } from '@/app/components/features/ProjectInfo';
 import { ProjectActions } from '@/app/components/features/ProjectActions';
 import { ImportExportButtons } from '@/app/components/features/ImportExport';
-import { TaskList } from '@/app/components/features/TaskList';
+import { TableView } from '@/app/components/features/TableView';
 import { GanttChart } from '@/app/components/features/GanttChart';
 import { HistoryPanel } from '@/app/components/features/HistoryPanel';
 import { ToastContainer } from '@/app/components/ui/Toast';
@@ -211,7 +211,7 @@ function MainContent() {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* メインコンテンツ */}
             <div className="lg:col-span-3">
-              {viewMode === 'list' ? <TaskList /> : <GanttChart />}
+              {viewMode === 'list' ? <TableView /> : <GanttChart />}
             </div>
             
             {/* サイドパネル */}
