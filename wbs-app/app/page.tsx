@@ -11,6 +11,7 @@ import { TaskList } from '@/app/components/features/TaskList';
 import { GanttChart } from '@/app/components/features/GanttChart';
 import { HistoryPanel } from '@/app/components/features/HistoryPanel';
 import { ToastContainer } from '@/app/components/ui/Toast';
+import { LoadingOverlay } from '@/app/components/ui/LoadingSpinner';
 import { ThemeToggle } from '@/app/hooks/useTheme';
 import { useKeyboardShortcuts } from '@/app/hooks/useKeyboardShortcuts';
 import { useWBS } from '@/app/hooks/useWBS';
@@ -21,28 +22,44 @@ type ViewMode = 'list' | 'gantt';
 function MainContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { state, dispatch, toasts, removeToast, showToast } = useWBS();
 
-  const handleExportProject = () => {
-    const exportData = {
-      ...state.project,
-      project_info: {
-        ...state.project.project_info,
-        updated_at: new Date().toISOString().split('T')[0]
-      }
-    };
+  const handleExportProject = async () => {
+    setIsLoading(true);
+    setLoadingText('プロジェクトをエクスポート中...');
     
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json'
-    });
-    
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wbs-${state.project.project_info.name.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      // 少し遅延を入れてローディング表示をわかりやすくする
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const exportData = {
+        ...state.project,
+        project_info: {
+          ...state.project.project_info,
+          updated_at: new Date().toISOString().split('T')[0]
+        }
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wbs-${state.project.project_info.name.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showToast.success('エクスポートが完了しました');
+    } catch (error) {
+      showToast.error('エクスポートに失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleImportProject = () => {
@@ -63,9 +80,16 @@ function MainContent() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsLoading(true);
+    setLoadingText('プロジェクトをインポート中...');
+
     try {
+      // ファイル読み込み
       const text = await file.text();
       const data = JSON.parse(text);
+      
+      // 少し遅延を入れてローディング表示をわかりやすくする
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       dispatch({
         type: 'IMPORT_PROJECT',
@@ -78,11 +102,12 @@ function MainContent() {
         'インポートに失敗しました',
         'JSONファイルの形式を確認してください。'
       );
-    }
-
-    // ファイル入力をリセット
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    } finally {
+      setIsLoading(false);
+      // ファイル入力をリセット
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -199,6 +224,9 @@ function MainContent() {
       
       {/* トースト通知 */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
+      
+      {/* ローディングオーバーレイ */}
+      <LoadingOverlay isVisible={isLoading} text={loadingText} />
     </div>
   );
 }

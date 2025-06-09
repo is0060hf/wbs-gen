@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Filter, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Filter, X, Save, FolderOpen, Trash2 } from 'lucide-react';
 
 export interface FilterOptions {
   searchTerm: string;
@@ -13,6 +13,13 @@ export interface FilterOptions {
   showDelayedOnly: boolean;
 }
 
+interface SavedFilter {
+  id: string;
+  name: string;
+  filters: FilterOptions;
+  createdAt: string;
+}
+
 interface TaskFilterProps {
   filters: FilterOptions;
   onFiltersChange: (filters: FilterOptions) => void;
@@ -21,6 +28,53 @@ interface TaskFilterProps {
 
 export function TaskFilter({ filters, onFiltersChange, availableAssignees }: TaskFilterProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [saveFilterName, setSaveFilterName] = useState('');
+
+  // ローカルストレージから保存されたフィルターを読み込み
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('wbs-saved-filters');
+      if (saved) {
+        setSavedFilters(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('フィルター読み込みエラー:', error);
+    }
+  }, []);
+
+  // フィルターを保存
+  const saveFilter = () => {
+    if (!saveFilterName.trim()) return;
+
+    const newFilter: SavedFilter = {
+      id: `filter-${Date.now()}`,
+      name: saveFilterName.trim(),
+      filters: { ...filters },
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedFilters = [...savedFilters, newFilter];
+    setSavedFilters(updatedFilters);
+    localStorage.setItem('wbs-saved-filters', JSON.stringify(updatedFilters));
+    setSaveFilterName('');
+    setShowSaveDialog(false);
+  };
+
+  // フィルターを読み込み
+  const loadFilter = (savedFilter: SavedFilter) => {
+    onFiltersChange(savedFilter.filters);
+    setShowLoadDialog(false);
+  };
+
+  // フィルターを削除
+  const deleteFilter = (filterId: string) => {
+    const updatedFilters = savedFilters.filter(f => f.id !== filterId);
+    setSavedFilters(updatedFilters);
+    localStorage.setItem('wbs-saved-filters', JSON.stringify(updatedFilters));
+  };
 
   const handleSearchChange = (value: string) => {
     onFiltersChange({ ...filters, searchTerm: value });
@@ -113,6 +167,29 @@ export function TaskFilter({ filters, onFiltersChange, availableAssignees }: Tas
           <Filter size={16} />
           詳細フィルター
         </button>
+
+        {/* フィルター保存・読み込みボタン */}
+        {hasActiveFilters && (
+          <button
+            onClick={() => setShowSaveDialog(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-green-50 text-green-700 rounded-md hover:bg-green-100"
+            title="現在のフィルター条件を保存"
+          >
+            <Save size={16} />
+            保存
+          </button>
+        )}
+
+        {savedFilters.length > 0 && (
+          <button
+            onClick={() => setShowLoadDialog(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100"
+            title="保存されたフィルター条件を読み込み"
+          >
+            <FolderOpen size={16} />
+            読み込み
+          </button>
+        )}
 
         {hasActiveFilters && (
           <button
@@ -286,6 +363,97 @@ export function TaskFilter({ filters, onFiltersChange, availableAssignees }: Tas
                 遅延タスクのみ
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* フィルター保存ダイアログ */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-medium mb-4">フィルター条件を保存</h3>
+            <input
+              type="text"
+              placeholder="フィルター名を入力"
+              value={saveFilterName}
+              onChange={(e) => setSaveFilterName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveFilter();
+                if (e.key === 'Escape') setShowSaveDialog(false);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={saveFilter}
+                disabled={!saveFilterName.trim()}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* フィルター読み込みダイアログ */}
+      {showLoadDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-h-96 overflow-y-auto">
+            <h3 className="text-lg font-medium mb-4">保存されたフィルター</h3>
+            {savedFilters.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">保存されたフィルターがありません</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {savedFilters.map((savedFilter) => (
+                  <div
+                    key={savedFilter.id}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{savedFilter.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {new Date(savedFilter.createdAt).toLocaleDateString('ja-JP')}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => loadFilter(savedFilter)}
+                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                      >
+                        読み込み
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`「${savedFilter.name}」を削除しますか？`)) {
+                            deleteFilter(savedFilter.id);
+                          }
+                        }}
+                        className="px-2 py-1 text-red-600 hover:bg-red-50 rounded"
+                        title="削除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowLoadDialog(false)}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                閉じる
+              </button>
+            </div>
           </div>
         </div>
       )}

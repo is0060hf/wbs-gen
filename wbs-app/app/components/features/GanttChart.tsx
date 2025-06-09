@@ -3,8 +3,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
-import { flattenTasks } from '@/app/lib/task-utils';
-import { Calendar, ZoomIn, ZoomOut, RotateCcw, GitBranch } from 'lucide-react';
+import { flattenTasks, identifyCriticalPath } from '@/app/lib/task-utils';
+import { Calendar, ZoomIn, ZoomOut, RotateCcw, GitBranch, Zap } from 'lucide-react';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -18,9 +18,15 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showDependencies, setShowDependencies] = useState(true);
+  const [highlightCriticalPath, setHighlightCriticalPath] = useState(false);
 
   // タスクを平坦化
   const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
+
+  // クリティカルパスの識別
+  const criticalPath = useMemo(() => {
+    return identifyCriticalPath(tasks);
+  }, [tasks]);
 
   // 日付範囲の計算
   const dateRange = useMemo(() => {
@@ -101,9 +107,14 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     };
   };
 
-  // 優先度による色分け
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  // 優先度による色分け（クリティカルパス考慮）
+  const getPriorityColor = (task: WBSTask) => {
+    // クリティカルパスの場合は特別な色
+    if (highlightCriticalPath && criticalPath.has(task.id)) {
+      return 'bg-gradient-to-r from-orange-500 to-red-600 border-2 border-orange-300';
+    }
+    
+    switch (task.priority) {
       case 'Must':
         return 'bg-red-500';
       case 'Should':
@@ -258,6 +269,19 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
             >
               <GitBranch size={16} />
             </button>
+
+            {/* クリティカルパスハイライト表示切替 */}
+            <button
+              onClick={() => setHighlightCriticalPath(!highlightCriticalPath)}
+              className={`p-2 rounded transition-colors ${
+                highlightCriticalPath
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              }`}
+              title={highlightCriticalPath ? 'クリティカルパスハイライトを非表示' : 'クリティカルパスをハイライト表示'}
+            >
+              <Zap size={16} />
+            </button>
             
             <button
               onClick={handleReset}
@@ -365,7 +389,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 <div className="flex-1 p-2 relative">
                   <div className="relative h-6">
                     <div
-                      className={`absolute top-1 h-4 rounded ${getPriorityColor(task.priority)} ${getStatusOpacity(task.status)}`}
+                      className={`absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusOpacity(task.status)}`}
                       style={getTaskBarStyle(task)}
                     >
                       {/* 進捗表示 */}
@@ -395,8 +419,8 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
       {/* 凡例 */}
       <div className="p-4 border-t border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between text-sm flex-wrap gap-2">
+          <div className="flex items-center gap-4 flex-wrap">
             <span className="text-gray-600">優先度:</span>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-red-500 rounded"></div>
@@ -414,10 +438,28 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
               <div className="w-3 h-3 bg-gray-500 rounded"></div>
               <span>Won't</span>
             </div>
+            
+            {highlightCriticalPath && (
+              <>
+                <div className="mx-2 h-4 w-px bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-red-600 rounded border border-orange-300"></div>
+                  <span className="text-orange-700 font-medium">クリティカルパス</span>
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-0.5 h-4 bg-red-500"></div>
-            <span className="text-gray-600">今日</span>
+          <div className="flex items-center gap-4">
+            {showDependencies && (
+              <div className="flex items-center gap-2">
+                <GitBranch size={12} className="text-gray-600" />
+                <span className="text-gray-600">依存関係</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <div className="w-0.5 h-4 bg-red-500"></div>
+              <span className="text-gray-600">今日</span>
+            </div>
           </div>
         </div>
       </div>

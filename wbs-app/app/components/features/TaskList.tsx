@@ -3,22 +3,23 @@
 import { useState, useMemo } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
-import { ChevronRight, ChevronDown, Plus, Copy, Trash2, MoreVertical, Edit } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, Copy, Trash2, MoreVertical, Edit, Expand, Minimize2 } from 'lucide-react';
 import { TaskEditModal } from './TaskEditModal';
 import { TaskFilter, FilterOptions } from './TaskFilter';
-import { filterTasks, getUniqueAssignees } from '@/app/lib/task-utils';
+import { filterTasks, getUniqueAssignees, flattenTasks } from '@/app/lib/task-utils';
 
 interface TaskItemProps {
   task: WBSTask;
   level: number;
   isSelected: boolean;
+  isExpanded?: boolean;
   onToggleSelect: (taskId: string, isCtrlKey: boolean) => void;
+  onToggleExpand?: (taskId: string) => void;
   onEditTask: (taskId: string) => void;
 }
 
-function TaskItem({ task, level, isSelected, onToggleSelect, onEditTask }: TaskItemProps) {
+function TaskItem({ task, level, isSelected, isExpanded = true, onToggleSelect, onToggleExpand, onEditTask }: TaskItemProps) {
   const { dispatch } = useWBS();
-  const [isExpanded, setIsExpanded] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(task.name);
   const [showMenu, setShowMenu] = useState(false);
@@ -41,7 +42,10 @@ function TaskItem({ task, level, isSelected, onToggleSelect, onEditTask }: TaskI
       type: 'ADD_CHILD_TASK',
       payload: { parentId: task.id }
     });
-    setIsExpanded(true);
+    // 子タスク追加時は展開状態にする（親コンポーネントで管理）
+    if (onToggleExpand && !isExpanded) {
+      onToggleExpand(task.id);
+    }
   };
 
   const handleAddSibling = () => {
@@ -82,7 +86,9 @@ function TaskItem({ task, level, isSelected, onToggleSelect, onEditTask }: TaskI
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setIsExpanded(!isExpanded);
+                if (onToggleExpand) {
+                  onToggleExpand(task.id);
+                }
               }}
               className="mr-1 p-1 hover:bg-gray-200 rounded"
             >
@@ -225,7 +231,9 @@ function TaskItem({ task, level, isSelected, onToggleSelect, onEditTask }: TaskI
           task={child}
           level={level + 1}
           isSelected={isSelected}
+          isExpanded={onToggleExpand ? undefined : true} // 親で管理されている場合はundefined
           onToggleSelect={onToggleSelect}
+          onToggleExpand={onToggleExpand}
           onEditTask={onEditTask}
         />
       ))}
@@ -238,6 +246,7 @@ export function TaskList() {
   const { wbs } = state.project;
   const { selectedTaskIds } = state;
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<FilterOptions>({
     searchTerm: '',
     priorities: [],
@@ -258,8 +267,41 @@ export function TaskList() {
     return getUniqueAssignees(wbs);
   }, [wbs]);
 
+  // 全てのタスクIDを取得（展開/折りたたみ用）
+  const allTaskIds = useMemo(() => {
+    const flatTasks = flattenTasks(wbs);
+    return new Set(flatTasks.filter(task => task.children && task.children.length > 0).map(task => task.id));
+  }, [wbs]);
+
+  // デフォルトで全て展開状態で初期化
+  useMemo(() => {
+    if (allTaskIds.size > 0 && expandedTaskIds.size === 0) {
+      setExpandedTaskIds(new Set(allTaskIds));
+    }
+  }, [allTaskIds, expandedTaskIds.size]);
+
   const handleAddRootTask = () => {
     dispatch({ type: 'ADD_ROOT_TASK' });
+  };
+
+  const handleToggleExpand = (taskId: string) => {
+    setExpandedTaskIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleExpandAll = () => {
+    setExpandedTaskIds(new Set(allTaskIds));
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedTaskIds(new Set());
   };
 
   const handleToggleSelect = (taskId: string, isCtrlKey: boolean) => {
@@ -315,6 +357,22 @@ export function TaskList() {
             </div>
             <div className="flex gap-2">
               <button
+                onClick={handleExpandAll}
+                className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2"
+                title="全て展開"
+              >
+                <Expand size={16} />
+                全て展開
+              </button>
+              <button
+                onClick={handleCollapseAll}
+                className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2"
+                title="全て折りたたみ"
+              >
+                <Minimize2 size={16} />
+                全て折りたたみ
+              </button>
+              <button
                 onClick={handleAddRootTask}
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
               >
@@ -359,7 +417,9 @@ export function TaskList() {
                   task={task}
                   level={0}
                   isSelected={selectedTaskIds.includes(task.id)}
+                  isExpanded={expandedTaskIds.has(task.id)}
                   onToggleSelect={handleToggleSelect}
+                  onToggleExpand={handleToggleExpand}
                   onEditTask={setEditingTaskId}
                 />
               ))
