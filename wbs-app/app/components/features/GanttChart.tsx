@@ -119,6 +119,16 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     return dates;
   }, [dateRange, viewMode, zoomLevel]);
 
+  // ビューモードに応じた単位期間を取得（共通関数）
+  const getUnitDays = useCallback(() => {
+    switch (viewMode) {
+      case 'day': return Math.ceil(1 / zoomLevel);
+      case 'week': return Math.ceil(7 / zoomLevel);
+      case 'month': return Math.ceil(30 / zoomLevel); // 月は約30日として計算
+      default: return 1;
+    }
+  }, [viewMode, zoomLevel]);
+
   // 日付フォーマット
   const formatDate = (date: Date) => {
     switch (viewMode) {
@@ -133,50 +143,123 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     }
   };
 
-  // タスクバーの位置とサイズを計算
-  const getTaskBarStyle = (task: WBSTask) => {
+  // タスクバーの位置とサイズを計算（ビューモードに対応）
+  const getTaskBarStyle = useCallback((task: WBSTask) => {
     const taskStart = new Date(task.start);
     const taskEnd = task.end ? new Date(task.end) : new Date(task.start);
     
-    const rangeStart = dateRange.start.getTime();
-    const rangeEnd = dateRange.end.getTime();
-    const rangeDuration = rangeEnd - rangeStart;
+    if (displayDates.length === 0) {
+      return { left: '0%', width: '1%' };
+    }
+
+    const unitDays = getUnitDays();
+
+    // タスクの開始位置を計算（displayDates配列のインデックスベース）
+    let startColumnIndex = -1;
+    let endColumnIndex = -1;
+
+    for (let i = 0; i < displayDates.length; i++) {
+      const columnStart = new Date(displayDates[i]);
+      const columnEnd = new Date(columnStart);
+      columnEnd.setDate(columnStart.getDate() + unitDays - 1);
+
+      // タスク開始日がこのカラムに含まれるかチェック
+      if (startColumnIndex === -1 && taskStart >= columnStart && taskStart <= columnEnd) {
+        startColumnIndex = i;
+      }
+
+      // タスク終了日がこのカラムに含まれるかチェック
+      if (taskEnd >= columnStart && taskEnd <= columnEnd) {
+        endColumnIndex = i;
+      }
+
+      // タスク開始日がこのカラムより前の場合
+      if (startColumnIndex === -1 && taskStart < columnStart) {
+        startColumnIndex = Math.max(0, i - 1);
+      }
+
+      // タスク終了日がこのカラムより後の場合
+      if (taskEnd > columnEnd && i === displayDates.length - 1) {
+        endColumnIndex = i;
+      }
+    }
+
+    // インデックスが見つからない場合のフォールバック
+    if (startColumnIndex === -1) {
+      startColumnIndex = taskStart < displayDates[0] ? 0 : displayDates.length - 1;
+    }
+    if (endColumnIndex === -1) {
+      endColumnIndex = taskEnd > displayDates[displayDates.length - 1] ? displayDates.length - 1 : 0;
+    }
+
+    // 開始カラム内での詳細な位置計算
+    const startColumn = displayDates[startColumnIndex];
+    const startColumnEnd = new Date(startColumn);
+    startColumnEnd.setDate(startColumn.getDate() + unitDays - 1);
     
-    const left = ((taskStart.getTime() - rangeStart) / rangeDuration) * 100;
-    const width = ((taskEnd.getTime() - taskStart.getTime()) / rangeDuration) * 100;
+    const startDivisor = (startColumnEnd.getTime() - startColumn.getTime()) || 1;
+    const taskStartInColumn = Math.max(0, Math.min(1, 
+      (taskStart.getTime() - startColumn.getTime()) / startDivisor
+    ));
+
+    // 終了カラム内での詳細な位置計算
+    const endColumn = displayDates[endColumnIndex];
+    const endColumnEnd = new Date(endColumn);
+    endColumnEnd.setDate(endColumn.getDate() + unitDays - 1);
     
+    const endDivisor = (endColumnEnd.getTime() - endColumn.getTime()) || 1;
+    const taskEndInColumn = Math.max(0, Math.min(1, 
+      (taskEnd.getTime() - endColumn.getTime()) / endDivisor
+    ));
+
+    // パーセンテージに変換
+    const totalColumns = displayDates.length;
+    const columnWidth = 100 / totalColumns;
+    
+    const left = (startColumnIndex + taskStartInColumn) * columnWidth;
+    const right = (endColumnIndex + taskEndInColumn) * columnWidth;
+    const width = Math.max(columnWidth * 0.1, right - left); // 最小幅を確保
+
     return {
       left: `${Math.max(0, left)}%`,
-      width: `${Math.max(1, width)}%`
+      width: `${width}%`
     };
-  };
+  }, [displayDates, getUnitDays]);
 
-  // ガントチャート表示定数（ズームレベルを考慮）
+  // ガントチャート表示定数
   const CHART_CONSTANTS = {
     ROW_HEIGHT: 57,           // タスク行の高さ
     LEFT_OFFSET: 320,         // タスク名エリアの幅
     PADDING: 8,              // パディング
-    CHART_WIDTH_MULTIPLIER: 4.8 * zoomLevel,  // チャート幅の倍率（ズームレベル適用）
     BAR_VERTICAL_OFFSET: 20   // タスクバーの垂直オフセット
   };
 
-  // マウス位置から日付を計算
+  // マウス位置から日付を計算（ビューモードに対応）
   const getDateFromMousePosition = useCallback((clientX: number) => {
-    if (!chartRef.current) return null;
+    if (!chartRef.current || displayDates.length === 0) return null;
     
     const rect = chartRef.current.getBoundingClientRect();
     const chartLeft = rect.left + CHART_CONSTANTS.LEFT_OFFSET;
     const chartWidth = rect.width - CHART_CONSTANTS.LEFT_OFFSET;
     const relativeX = clientX - chartLeft;
-    const percentage = relativeX / chartWidth;
+    const percentage = Math.max(0, Math.min(1, relativeX / chartWidth));
     
-    const rangeStart = dateRange.start.getTime();
-    const rangeEnd = dateRange.end.getTime();
-    const rangeDuration = rangeEnd - rangeStart;
+    // どのカラムに該当するかを計算
+    const columnIndex = Math.floor(percentage * displayDates.length);
+    const clampedColumnIndex = Math.max(0, Math.min(displayDates.length - 1, columnIndex));
     
-    const timestamp = rangeStart + (percentage * rangeDuration);
-    return new Date(timestamp);
-  }, [dateRange, zoomLevel]);
+    // カラム内での位置を計算
+    const columnPercentage = (percentage * displayDates.length) - columnIndex;
+    
+    const unitDays = getUnitDays();
+    const columnStart = new Date(displayDates[clampedColumnIndex]);
+    const offsetDays = Math.floor(columnPercentage * unitDays);
+    
+    const resultDate = new Date(columnStart);
+    resultDate.setDate(columnStart.getDate() + offsetDays);
+    
+    return resultDate;
+  }, [displayDates, getUnitDays, zoomLevel]);
 
   // ドラッグ開始
   const handleMouseDown = useCallback((e: React.MouseEvent, task: WBSTask, dragType: 'start' | 'end' | 'move') => {
@@ -345,15 +428,34 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     }
   };
 
-  // 現在日のライン位置
+  // 現在日のライン位置（ビューモードに対応）
   const getTodayLinePosition = () => {
     const today = new Date();
-    const rangeStart = dateRange.start.getTime();
-    const rangeEnd = dateRange.end.getTime();
-    const rangeDuration = rangeEnd - rangeStart;
     
-    const position = ((today.getTime() - rangeStart) / rangeDuration) * 100;
-    return Math.max(0, Math.min(100, position));
+    if (displayDates.length === 0) return 0;
+    
+    const unitDays = getUnitDays();
+    
+    // 今日がどのカラムに該当するかを検索
+    for (let i = 0; i < displayDates.length; i++) {
+      const columnStart = new Date(displayDates[i]);
+      const columnEnd = new Date(columnStart);
+      columnEnd.setDate(columnStart.getDate() + unitDays - 1);
+      
+      if (today >= columnStart && today <= columnEnd) {
+        // カラム内での位置を計算
+        const divisor = (columnEnd.getTime() - columnStart.getTime()) || 1;
+        const positionInColumn = (today.getTime() - columnStart.getTime()) / divisor;
+        const columnWidth = 100 / displayDates.length;
+        return (i + positionInColumn) * columnWidth;
+      }
+    }
+    
+    // 範囲外の場合
+    if (today < displayDates[0]) return 0;
+    if (today > displayDates[displayDates.length - 1]) return 100;
+    
+    return 50; // フォールバック
   };
 
   // 依存関係線の描画用データ生成
@@ -386,19 +488,25 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     return lines;
   }, [flatTasks, showDependencies]);
 
-  // 依存関係線のSVGパス生成
+  // 依存関係線のSVGパス生成（ビューモードに対応）
   const generateDependencyPath = (line: typeof dependencyLines[0]) => {
+    if (!chartRef.current) return '';
+    
+    // チャート領域の実際の幅を取得
+    const rect = chartRef.current.getBoundingClientRect();
+    const chartWidth = rect.width - CHART_CONSTANTS.LEFT_OFFSET;
+    
     // 開始点（前提タスクの終了位置）
     const fromBarStyle = getTaskBarStyle(line.fromTask);
-    const fromX = CHART_CONSTANTS.LEFT_OFFSET + 
-      (parseFloat(fromBarStyle.left.replace('%', '')) + parseFloat(fromBarStyle.width.replace('%', ''))) * 
-      CHART_CONSTANTS.CHART_WIDTH_MULTIPLIER;
+    const fromLeftPercentage = parseFloat(fromBarStyle.left.replace('%', ''));
+    const fromWidthPercentage = parseFloat(fromBarStyle.width.replace('%', ''));
+    const fromX = CHART_CONSTANTS.LEFT_OFFSET + ((fromLeftPercentage + fromWidthPercentage) / 100) * chartWidth;
     const fromY = (line.fromIndex + 1) * CHART_CONSTANTS.ROW_HEIGHT + CHART_CONSTANTS.BAR_VERTICAL_OFFSET;
 
     // 終了点（後続タスクの開始位置）
     const toBarStyle = getTaskBarStyle(line.toTask);
-    const toX = CHART_CONSTANTS.LEFT_OFFSET + 
-      parseFloat(toBarStyle.left.replace('%', '')) * CHART_CONSTANTS.CHART_WIDTH_MULTIPLIER;
+    const toLeftPercentage = parseFloat(toBarStyle.left.replace('%', ''));
+    const toX = CHART_CONSTANTS.LEFT_OFFSET + (toLeftPercentage / 100) * chartWidth;
     const toY = (line.toIndex + 1) * CHART_CONSTANTS.ROW_HEIGHT + CHART_CONSTANTS.BAR_VERTICAL_OFFSET;
 
     // 中継点を使った滑らかな線
