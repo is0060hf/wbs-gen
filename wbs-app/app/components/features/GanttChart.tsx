@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
 import { flattenTasks } from '@/app/lib/task-utils';
-import { Calendar, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Calendar, ZoomIn, ZoomOut, RotateCcw, GitBranch } from 'lucide-react';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -17,6 +17,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const tasks = propTasks || state.project.wbs;
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [showDependencies, setShowDependencies] = useState(true);
 
   // タスクを平坦化
   const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
@@ -141,6 +142,69 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     return Math.max(0, Math.min(100, position));
   };
 
+  // 依存関係線の描画用データ生成
+  const dependencyLines = useMemo(() => {
+    if (!showDependencies) return [];
+    
+    const lines: Array<{
+      fromTask: WBSTask;
+      toTask: WBSTask;
+      fromIndex: number;
+      toIndex: number;
+    }> = [];
+
+    flatTasks.forEach((task, toIndex) => {
+      if (task.dependencies && task.dependencies.length > 0) {
+        task.dependencies.forEach(depId => {
+          const fromIndex = flatTasks.findIndex(t => t.id === depId);
+          if (fromIndex !== -1) {
+            lines.push({
+              fromTask: flatTasks[fromIndex],
+              toTask: task,
+              fromIndex,
+              toIndex
+            });
+          }
+        });
+      }
+    });
+
+    return lines;
+  }, [flatTasks, showDependencies]);
+
+  // ガントチャート表示定数
+  const CHART_CONSTANTS = {
+    ROW_HEIGHT: 57,           // タスク行の高さ
+    LEFT_OFFSET: 320,         // タスク名エリアの幅
+    PADDING: 8,              // パディング
+    CHART_WIDTH_MULTIPLIER: 4.8,  // チャート幅の倍率（画面幅に対する比率）
+    BAR_VERTICAL_OFFSET: 20   // タスクバーの垂直オフセット
+  };
+
+  // 依存関係線のSVGパス生成
+  const generateDependencyPath = (line: typeof dependencyLines[0]) => {
+    // 開始点（前提タスクの終了位置）
+    const fromBarStyle = getTaskBarStyle(line.fromTask);
+    const fromX = CHART_CONSTANTS.LEFT_OFFSET + 
+      (parseFloat(fromBarStyle.left.replace('%', '')) + parseFloat(fromBarStyle.width.replace('%', ''))) * 
+      CHART_CONSTANTS.CHART_WIDTH_MULTIPLIER;
+    const fromY = (line.fromIndex + 1) * CHART_CONSTANTS.ROW_HEIGHT + CHART_CONSTANTS.BAR_VERTICAL_OFFSET;
+
+    // 終了点（後続タスクの開始位置）
+    const toBarStyle = getTaskBarStyle(line.toTask);
+    const toX = CHART_CONSTANTS.LEFT_OFFSET + 
+      parseFloat(toBarStyle.left.replace('%', '')) * CHART_CONSTANTS.CHART_WIDTH_MULTIPLIER;
+    const toY = (line.toIndex + 1) * CHART_CONSTANTS.ROW_HEIGHT + CHART_CONSTANTS.BAR_VERTICAL_OFFSET;
+
+    // 中継点を使った滑らかな線
+    const midX = (fromX + toX) / 2;
+    
+    return `M ${fromX} ${fromY} 
+            Q ${midX} ${fromY} ${midX} ${(fromY + toY) / 2} 
+            Q ${midX} ${toY} ${toX - 8} ${toY}
+            L ${toX} ${toY}`;
+  };
+
   const handleReset = () => {
     setCurrentDate(new Date());
     setViewMode('week');
@@ -181,6 +245,19 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 </button>
               ))}
             </div>
+
+            {/* 依存関係線の表示切替 */}
+            <button
+              onClick={() => setShowDependencies(!showDependencies)}
+              className={`p-2 rounded transition-colors ${
+                showDependencies
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              }`}
+              title={showDependencies ? '依存関係線を非表示' : '依存関係線を表示'}
+            >
+              <GitBranch size={16} />
+            </button>
             
             <button
               onClick={handleReset}
@@ -222,6 +299,42 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
               className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
               style={{ left: `calc(320px + ${getTodayLinePosition()}%)` }}
             />
+
+            {/* 依存関係線のSVG */}
+            {showDependencies && dependencyLines.length > 0 && (
+              <svg
+                className="absolute top-0 left-0 w-full h-full pointer-events-none z-5"
+                style={{ height: flatTasks.length * CHART_CONSTANTS.ROW_HEIGHT }}
+              >
+                <defs>
+                  <marker
+                    id="arrowhead"
+                    markerWidth="8"
+                    markerHeight="6"
+                    refX="7"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon
+                      points="0 0, 8 3, 0 6"
+                      fill="#6b7280"
+                      className="opacity-70"
+                    />
+                  </marker>
+                </defs>
+                {dependencyLines.map((line, index) => (
+                  <path
+                    key={index}
+                    d={generateDependencyPath(line)}
+                    stroke="#6b7280"
+                    strokeWidth="2"
+                    fill="none"
+                    className="opacity-70"
+                    markerEnd="url(#arrowhead)"
+                  />
+                ))}
+              </svg>
+            )}
 
             {flatTasks.map((task, index) => (
               <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50">

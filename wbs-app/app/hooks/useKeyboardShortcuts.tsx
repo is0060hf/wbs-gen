@@ -10,7 +10,7 @@ interface KeyboardShortcutsOptions {
 }
 
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
-  const { state, dispatch } = useWBS();
+  const { state, dispatch, undo, redo, canUndo, canRedo } = useWBS();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -58,17 +58,27 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
             break;
 
           case 'z':
-            if (!event.shiftKey) {
+            if (event.shiftKey) {
+              // Ctrl/Cmd + Shift + Z: Redo
               event.preventDefault();
-              // TODO: Undo機能（操作履歴実装時に追加）
-              console.log('Undo (未実装)');
+              if (canRedo) {
+                redo();
+              }
+            } else {
+              // Ctrl/Cmd + Z: Undo
+              event.preventDefault();
+              if (canUndo) {
+                undo();
+              }
             }
             break;
 
           case 'y':
+            // Ctrl/Cmd + Y: Redo (Windows style)
             event.preventDefault();
-            // TODO: Redo機能（操作履歴実装時に追加）
-            console.log('Redo (未実装)');
+            if (canRedo) {
+              redo();
+            }
             break;
 
           case 'a':
@@ -132,8 +142,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       { key: `${modKey} + S`, description: 'プロジェクト保存' },
       { key: `${modKey} + O`, description: 'プロジェクトを開く' },
       { key: `${modKey} + A`, description: '全タスク選択' },
-      { key: `${modKey} + Z`, description: '元に戻す (未実装)' },
-      { key: `${modKey} + Y`, description: 'やり直し (未実装)' },
+      { key: `${modKey} + Z`, description: '元に戻す' },
+      { key: `${modKey} + Y / ${modKey} + Shift + Z`, description: 'やり直し' },
       { key: 'Delete', description: '選択したタスクを削除' },
       { key: 'Escape', description: '選択を解除' }
     ];

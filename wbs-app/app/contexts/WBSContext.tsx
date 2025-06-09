@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useReducer, ReactNode, useCallback } from 'react';
 import { Project, WBSTask } from '@/app/lib/types';
 import { 
   createEmptyProject, 
@@ -13,6 +13,9 @@ import {
   calculateEndDate
 } from '@/app/lib/wbs-utils';
 import { generateSampleProject } from '@/app/lib/sample-data';
+import { useHistory } from '@/app/hooks/useHistory';
+import { useToast } from '@/app/hooks/useToast';
+import { HistoryActionType } from '@/app/lib/history-types';
 
 // アクションタイプ
 type WBSAction =
@@ -366,6 +369,23 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
 interface WBSContextType {
   state: WBSState;
   dispatch: React.Dispatch<WBSAction>;
+  // 履歴管理
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
+  clearHistory: () => void;
+  // トースト通知
+  showToast: {
+    success: (title: string, message?: string) => void;
+    error: (title: string, message?: string) => void;
+    warning: (title: string, message?: string) => void;
+    info: (title: string, message?: string) => void;
+    successWithUndo: (title: string, message?: string, onUndo?: () => void) => void;
+  };
+  // トースト状態
+  toasts: ReturnType<typeof useToast>['toasts'];
+  removeToast: (id: string) => void;
 }
 
 export const WBSContext = createContext<WBSContextType | null>(null);
@@ -377,9 +397,120 @@ interface WBSProviderProps {
 
 export function WBSProvider({ children }: WBSProviderProps) {
   const [state, dispatch] = useReducer(wbsReducer, initialState);
+  const history = useHistory();
+  const toast = useToast();
+
+  // 履歴付きのdispatch関数
+  const dispatchWithHistory = useCallback((action: WBSAction) => {
+    // アクション実行前の状態を保存（Deep cloneで安全にコピー）
+    const beforeState = JSON.parse(JSON.stringify(state.project));
+    
+    // アクションを実行
+    dispatch(action);
+    
+    // 次のレンダリングサイクルで履歴エントリを作成
+    setTimeout(() => {
+      // アクション実行後の状態を取得（最新のstateを参照する必要があるため）
+      const currentState = JSON.parse(JSON.stringify(state.project));
+      let historyType: HistoryActionType;
+      let description: string;
+      let metadata: any = {};
+
+      switch (action.type) {
+        case 'CREATE_NEW_PROJECT':
+          historyType = 'CREATE_PROJECT';
+          description = '新規プロジェクトを作成しました';
+          break;
+        case 'IMPORT_PROJECT':
+          historyType = 'IMPORT_PROJECT';
+          description = 'プロジェクトをインポートしました';
+          break;
+        case 'UPDATE_PROJECT_INFO':
+          historyType = 'UPDATE_PROJECT_INFO';
+          description = 'プロジェクト情報を更新しました';
+          break;
+        case 'ADD_ROOT_TASK':
+        case 'ADD_CHILD_TASK':
+        case 'ADD_SIBLING_TASK':
+          historyType = 'ADD_TASK';
+          description = 'タスクを追加しました';
+          break;
+        case 'UPDATE_TASK':
+          historyType = 'UPDATE_TASK';
+          description = 'タスクを更新しました';
+          metadata.taskIds = [action.payload.taskId];
+          break;
+        case 'DELETE_TASK':
+          historyType = 'DELETE_TASK';
+          description = 'タスクを削除しました';
+          metadata.taskIds = [action.payload.taskId];
+          break;
+        case 'BULK_DELETE_TASKS':
+          historyType = 'BULK_DELETE';
+          description = `${state.selectedTaskIds.length}個のタスクを削除しました`;
+          metadata.affectedCount = state.selectedTaskIds.length;
+          break;
+        case 'BULK_UPDATE_TASKS':
+          historyType = 'BULK_UPDATE';
+          description = `${state.selectedTaskIds.length}個のタスクを更新しました`;
+          metadata.affectedCount = state.selectedTaskIds.length;
+          break;
+        default:
+          return; // 履歴に記録しないアクション
+      }
+
+      history.addHistoryEntry(historyType, description, beforeState, currentState, metadata);
+    }, 0);
+  }, [state.project, state.selectedTaskIds, history]);
+
+  // Undo実行時の処理
+  const handleUndo = useCallback(() => {
+    const historyState = history.getCurrentState();
+    if (historyState) {
+      // 直接stateを更新（履歴に記録しない）
+      dispatch({ type: 'IMPORT_PROJECT', payload: historyState });
+      history.undo();
+      toast.info('操作を元に戻しました');
+    }
+  }, [history, toast]);
+
+  // Redo実行時の処理
+  const handleRedo = useCallback(() => {
+    history.redo();
+    const historyState = history.getCurrentState();
+    if (historyState) {
+      dispatch({ type: 'IMPORT_PROJECT', payload: historyState });
+      toast.info('操作をやり直しました');
+    }
+  }, [history, toast]);
+
+  // トースト通知のヘルパー
+  const showToast = {
+    success: (title: string, message?: string) => toast.success(title, message),
+    error: (title: string, message?: string) => toast.error(title, message),
+    warning: (title: string, message?: string) => toast.warning(title, message),
+    info: (title: string, message?: string) => toast.info(title, message),
+    successWithUndo: (title: string, message?: string, onUndo?: () => void) => 
+      toast.successWithUndo(title, message, onUndo)
+  };
+
+  const contextValue: WBSContextType = {
+    state,
+    dispatch: dispatchWithHistory,
+    // 履歴管理
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undo: handleUndo,
+    redo: handleRedo,
+    clearHistory: history.clearHistory,
+    // トースト通知
+    showToast,
+    toasts: toast.toasts,
+    removeToast: toast.removeToast
+  };
 
   return (
-    <WBSContext.Provider value={{ state, dispatch }}>
+    <WBSContext.Provider value={contextValue}>
       {children}
     </WBSContext.Provider>
   );

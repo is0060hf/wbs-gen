@@ -2,11 +2,16 @@
 
 import { useState, useRef } from 'react';
 import { WBSProvider } from '@/app/contexts/WBSContext';
+import { ThemeProvider } from '@/app/hooks/useTheme';
+import { DragDropProvider } from '@/app/components/ui/DragDropContext';
 import { ProjectInfo } from '@/app/components/features/ProjectInfo';
 import { ProjectActions } from '@/app/components/features/ProjectActions';
 import { ImportExportButtons } from '@/app/components/features/ImportExport';
 import { TaskList } from '@/app/components/features/TaskList';
 import { GanttChart } from '@/app/components/features/GanttChart';
+import { HistoryPanel } from '@/app/components/features/HistoryPanel';
+import { ToastContainer } from '@/app/components/ui/Toast';
+import { ThemeToggle } from '@/app/hooks/useTheme';
 import { useKeyboardShortcuts } from '@/app/hooks/useKeyboardShortcuts';
 import { useWBS } from '@/app/hooks/useWBS';
 import { List, BarChart3, Keyboard } from 'lucide-react';
@@ -17,7 +22,7 @@ function MainContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { state, dispatch } = useWBS();
+  const { state, dispatch, toasts, removeToast, showToast } = useWBS();
 
   const handleExportProject = () => {
     const exportData = {
@@ -66,8 +71,13 @@ function MainContent() {
         type: 'IMPORT_PROJECT',
         payload: data
       });
+      
+      showToast.success('プロジェクトをインポートしました', `ファイル: ${file.name}`);
     } catch (error) {
-      alert('インポートに失敗しました。JSONファイルの形式を確認してください。');
+      showToast.error(
+        'インポートに失敗しました',
+        'JSONファイルの形式を確認してください。'
+      );
     }
 
     // ファイル入力をリセット
@@ -77,7 +87,7 @@ function MainContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
       <input
         ref={fileInputRef}
         type="file"
@@ -86,41 +96,44 @@ function MainContent() {
         className="hidden"
       />
 
-      <header className="bg-white shadow-sm">
+      <header className="bg-white dark:bg-gray-800 shadow-sm transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">WBS管理システム</h1>
-            <button
-              onClick={() => setShowShortcuts(!showShortcuts)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-              title="キーボードショートカット"
-            >
-              <Keyboard size={16} />
-              ショートカット
-            </button>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">WBS管理システム</h1>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={() => setShowShortcuts(!showShortcuts)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                title="キーボードショートカット"
+              >
+                <Keyboard size={16} />
+                ショートカット
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* ショートカット一覧（表示時のみ） */}
       {showShortcuts && (
-        <div className="bg-blue-50 border-b border-blue-200">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 transition-colors">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-medium text-blue-900 mb-2">キーボードショートカット</h3>
+                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">キーボードショートカット</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-sm">
                   {shortcuts.map((shortcut, index) => (
                     <div key={index} className="flex justify-between">
-                      <span className="font-mono text-blue-700">{shortcut.key}</span>
-                      <span className="text-blue-600 ml-2">{shortcut.description}</span>
+                      <span className="font-mono text-blue-700 dark:text-blue-300">{shortcut.key}</span>
+                      <span className="text-blue-600 dark:text-blue-400 ml-2">{shortcut.description}</span>
                     </div>
                   ))}
                 </div>
               </div>
               <button
                 onClick={() => setShowShortcuts(false)}
-                className="text-blue-600 hover:text-blue-800"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
               >
                 ×
               </button>
@@ -169,18 +182,35 @@ function MainContent() {
             </div>
           </div>
 
-          {/* タスクビュー */}
-          {viewMode === 'list' ? <TaskList /> : <GanttChart />}
+          {/* サイドパネルとタスクビュー */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* メインコンテンツ */}
+            <div className="lg:col-span-3">
+              {viewMode === 'list' ? <TaskList /> : <GanttChart />}
+            </div>
+            
+            {/* サイドパネル */}
+            <div className="lg:col-span-1 space-y-4">
+              <HistoryPanel />
+            </div>
+          </div>
         </div>
       </main>
+      
+      {/* トースト通知 */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }
 
 export default function Home() {
   return (
-    <WBSProvider>
-      <MainContent />
-    </WBSProvider>
+    <ThemeProvider>
+      <DragDropProvider>
+        <WBSProvider>
+          <MainContent />
+        </WBSProvider>
+      </DragDropProvider>
+    </ThemeProvider>
   );
 }
