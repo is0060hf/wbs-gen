@@ -7,6 +7,7 @@ import { calculateEndDate } from '@/app/lib/wbs-utils';
 import { useWBS } from '@/app/hooks/useWBS';
 import { identifyCriticalPath } from '@/app/lib/task-utils';
 import { Calendar, RotateCcw, GitBranch, Zap } from 'lucide-react';
+import { TaskEditModal } from './TaskEditModal';
 
 interface GanttChartProps {
   tasks?: WBSTask[];
@@ -28,14 +29,8 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showDependencies, setShowDependencies] = useState(true);
   const [highlightCriticalPath, setHighlightCriticalPath] = useState(false);
-  const [dragState, setDragState] = useState<DragState>({
-    isDragging: false,
-    taskId: null,
-    dragType: null,
-    originalStart: '',
-    originalEnd: '',
-    originalDuration: 0
-  });
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -179,7 +174,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
   // ドラッグ中
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragState.isDragging || !dragState.taskId) return;
+    if (!dragState?.isDragging || !dragState?.taskId) return;
 
     const newDate = getDateFromMousePosition(e.clientX);
     if (!newDate) return;
@@ -230,18 +225,11 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
   // ドラッグ終了
   const handleMouseUp = useCallback((e: MouseEvent) => {
-    if (!dragState.isDragging || !dragState.taskId) return;
+    if (!dragState?.isDragging || !dragState?.taskId) return;
 
     const newDate = getDateFromMousePosition(e.clientX);
     if (!newDate) {
-      setDragState({
-        isDragging: false,
-        taskId: null,
-        dragType: null,
-        originalStart: '',
-        originalEnd: '',
-        originalDuration: 0
-      });
+      setDragState(null);
       return;
     }
 
@@ -282,19 +270,12 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       }
     });
 
-    setDragState({
-      isDragging: false,
-      taskId: null,
-      dragType: null,
-      originalStart: '',
-      originalEnd: '',
-      originalDuration: 0
-    });
+    setDragState(null);
   }, [dragState, getDateFromMousePosition, dispatch]);
 
   // マウスイベントリスナーの設定
   useEffect(() => {
-    if (dragState.isDragging) {
+    if (dragState?.isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       return () => {
@@ -302,7 +283,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [dragState.isDragging, handleMouseMove, handleMouseUp]);
+  }, [dragState?.isDragging, handleMouseMove, handleMouseUp]);
 
   // 優先度による色分け（クリティカルパス考慮）
   const getPriorityColor = (task: WBSTask) => {
@@ -585,10 +566,17 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                   <div className="relative h-6">
                     <div
                       className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusPattern(task.status)} cursor-move hover:shadow-md transition-all duration-200 ${
-                        dragState.isDragging && dragState.taskId === task.id ? 'shadow-lg ring-2 ring-blue-300' : ''
+                        dragState?.taskId === task.id ? 'shadow-lg ring-2 ring-blue-300' : ''
                       }`}
                       style={getTaskBarStyle(task)}
                       onMouseDown={(e) => handleMouseDown(e, task, 'move')}
+                      onClick={(e) => {
+                        // ドラッグ中でない場合のみ編集モーダルを開く
+                        if (!dragState?.isDragging) {
+                          e.stopPropagation();
+                          setEditingTaskId(task.id);
+                        }
+                      }}
                       tabIndex={0}
                       role="button"
                       aria-label={`${task.name}: ${task.start}から${task.end}まで。ドラッグして日程変更可能`}
@@ -730,6 +718,13 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
           </div>
         </div>
       </div>
+
+      {editingTaskId && (
+        <TaskEditModal
+          taskId={editingTaskId}
+          onClose={() => setEditingTaskId(null)}
+        />
+      )}
     </div>
   );
 } 
