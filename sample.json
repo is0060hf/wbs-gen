@@ -1,0 +1,627 @@
+{
+  "project_info": {
+    "name": "販促アーカイブ開発プロジェクト PoC版",
+    "version": "2025-06-05",
+    "pmbok_version": "7",
+    "description": "7/1デモ会で価値仮説を検証できる動くPoCを提示"
+  },
+  "wbs": [
+    {
+      "id": "T-001",
+      "wbs_code": "1",
+      "name": "プロジェクト開始・環境構築フェーズ",
+      "priority": "Must",
+      "start": "2025-06-05",
+      "duration_days": 5,
+      "children": [
+        {
+          "id": "T-001-01",
+          "wbs_code": "1.1",
+          "name": "キックオフミーティング実施",
+          "priority": "Must",
+          "start": "2025-06-05",
+          "duration_days": 0.5,
+          "assignee": "X3d 加藤"
+        },
+        {
+          "id": "T-001-02",
+          "wbs_code": "1.2",
+          "name": "プロジェクト計画書作成",
+          "priority": "Must",
+          "start": "2025-06-05",
+          "duration_days": 0.5,
+          "assignee": "X3d 加藤"
+        },
+        {
+          "id": "T-001-03",
+          "wbs_code": "1.3",
+          "name": "ネットワークとアカウント設定",
+          "priority": "Must",
+          "start": "2025-06-06",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア1"
+        },
+        {
+          "id": "T-001-04",
+          "wbs_code": "1.4",
+          "name": "GitHub連携設定",
+          "priority": "Must",
+          "start": "2025-06-07",
+          "duration_days": 0.5,
+          "assignee": "X3d エンジニア1"
+        },
+        {
+          "id": "T-001-05",
+          "wbs_code": "1.5",
+          "name": "ソースコード解析",
+          "priority": "Must",
+          "start": "2025-06-06",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2"
+        },
+        {
+          "id": "T-001-06",
+          "wbs_code": "1.6",
+          "name": "画面遷移図・PPTX資料の確認",
+          "priority": "Must",
+          "start": "2025-06-06",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア3"
+        },
+        {
+          "id": "T-001-07",
+          "wbs_code": "1.7",
+          "name": "開発用リポジトリ構築",
+          "priority": "Must",
+          "start": "2025-06-07",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-001-04"]
+        },
+        {
+          "id": "T-001-08",
+          "wbs_code": "1.8",
+          "name": "ローカル開発環境構築",
+          "priority": "Must",
+          "start": "2025-06-07",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-001-03", "T-001-04"]
+        },
+        {
+          "id": "BUF-1",
+          "wbs_code": "1.9",
+          "name": "環境構築フェーズバッファ",
+          "priority": "Must",
+          "start": "2025-06-08",
+          "buffer": 2
+        }
+      ]
+    },
+    {
+      "id": "T-002",
+      "wbs_code": "2",
+      "name": "モックAPI構築フェーズ",
+      "priority": "Must",
+      "start": "2025-06-10",
+      "duration_days": 5,
+      "children": [
+        {
+          "id": "T-002-01",
+          "wbs_code": "2.1",
+          "name": "モックAPIの仕様設計",
+          "priority": "Must",
+          "start": "2025-06-10",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2"
+        },
+        {
+          "id": "T-002-02",
+          "wbs_code": "2.2",
+          "name": "データモデル設計",
+          "priority": "Must",
+          "start": "2025-06-10",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3"
+        },
+        {
+          "id": "T-002-03",
+          "wbs_code": "2.3",
+          "name": "企業選択用モックAPI実装",
+          "priority": "Must",
+          "start": "2025-06-12",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-002-01", "T-002-02"]
+        },
+        {
+          "id": "T-002-04",
+          "wbs_code": "2.4",
+          "name": "チラシデータ取得用モックAPI実装",
+          "priority": "Must",
+          "start": "2025-06-12",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-002-01", "T-002-02"]
+        },
+        {
+          "id": "T-002-05",
+          "wbs_code": "2.5",
+          "name": "検索機能用モックAPI実装",
+          "priority": "Must",
+          "start": "2025-06-12",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-002-01", "T-002-02"]
+        },
+        {
+          "id": "BUF-2",
+          "wbs_code": "2.6",
+          "name": "モックAPI構築フェーズバッファ",
+          "priority": "Must",
+          "start": "2025-06-14",
+          "buffer": 1
+        }
+      ]
+    },
+    {
+      "id": "T-003",
+      "wbs_code": "3",
+      "name": "基本画面構築フェーズ",
+      "priority": "Must",
+      "start": "2025-06-10",
+      "duration_days": 5,
+      "children": [
+        {
+          "id": "T-003-01",
+          "wbs_code": "3.1",
+          "name": "UI共通コンポーネント設計",
+          "priority": "Must",
+          "start": "2025-06-10",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1"
+        },
+        {
+          "id": "T-003-02",
+          "wbs_code": "3.2",
+          "name": "画面レイアウト基盤実装",
+          "priority": "Must",
+          "start": "2025-06-12",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-003-01"]
+        },
+        {
+          "id": "T-003-03",
+          "wbs_code": "3.3",
+          "name": "メインメニュー画面実装",
+          "priority": "Must",
+          "start": "2025-06-12",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-003-01"]
+        },
+        {
+          "id": "T-003-04",
+          "wbs_code": "3.4",
+          "name": "検索一覧画面の基本構造実装",
+          "priority": "Must",
+          "start": "2025-06-12",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-003-01"]
+        },
+        {
+          "id": "BUF-3",
+          "wbs_code": "3.5",
+          "name": "基本画面構築フェーズバッファ",
+          "priority": "Must",
+          "start": "2025-06-14",
+          "buffer": 1
+        }
+      ]
+    },
+    {
+      "id": "T-004",
+      "wbs_code": "4",
+      "name": "優先ページ開発フェーズ",
+      "priority": "Must",
+      "start": "2025-06-15",
+      "duration_days": 7,
+      "children": [
+        {
+          "id": "T-004-01",
+          "wbs_code": "4.1",
+          "name": "3ページUI実装",
+          "priority": "Must",
+          "start": "2025-06-15",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-003-02"]
+        },
+        {
+          "id": "T-004-02",
+          "wbs_code": "4.2",
+          "name": "3ページBigQueryクエリ機能実装",
+          "priority": "Must",
+          "start": "2025-06-15",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-002-04"]
+        },
+        {
+          "id": "T-004-03",
+          "wbs_code": "4.3",
+          "name": "3ページグラフ描画機能実装",
+          "priority": "Must",
+          "start": "2025-06-18",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-004-01", "T-004-02"]
+        },
+        {
+          "id": "T-004-04",
+          "wbs_code": "4.4",
+          "name": "4ページUI実装",
+          "priority": "Must",
+          "start": "2025-06-15",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-003-02"]
+        },
+        {
+          "id": "T-004-05",
+          "wbs_code": "4.5",
+          "name": "4ページBigQueryクエリ機能実装",
+          "priority": "Must",
+          "start": "2025-06-15",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-002-04"]
+        },
+        {
+          "id": "T-004-06",
+          "wbs_code": "4.6",
+          "name": "4ページグラフ描画機能実装",
+          "priority": "Must",
+          "start": "2025-06-18",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-004-04", "T-004-05"]
+        },
+        {
+          "id": "BUF-4",
+          "wbs_code": "4.7",
+          "name": "優先ページ開発フェーズバッファ",
+          "priority": "Must",
+          "start": "2025-06-21",
+          "buffer": 2
+        }
+      ]
+    },
+    {
+      "id": "T-005",
+      "wbs_code": "5",
+      "name": "検索・チラシ機能開発フェーズ",
+      "priority": "Must",
+      "start": "2025-06-17",
+      "duration_days": 7,
+      "children": [
+        {
+          "id": "T-005-01",
+          "wbs_code": "5.1",
+          "name": "完全一致検索機能実装",
+          "priority": "Must",
+          "start": "2025-06-17",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-002-05"]
+        },
+        {
+          "id": "T-005-02",
+          "wbs_code": "5.2",
+          "name": "検索結果表示機能実装",
+          "priority": "Must",
+          "start": "2025-06-20",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-005-01"]
+        },
+        {
+          "id": "T-005-03",
+          "wbs_code": "5.3",
+          "name": "単一ページチラシ表示機能実装",
+          "priority": "Must",
+          "start": "2025-06-17",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-002-04"]
+        },
+        {
+          "id": "T-005-04",
+          "wbs_code": "5.4",
+          "name": "基本的な商品情報表示機能実装",
+          "priority": "Must",
+          "start": "2025-06-20",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-005-03"]
+        },
+        {
+          "id": "T-005-05",
+          "wbs_code": "5.5",
+          "name": "期間・企業・店舗絞り込み機能実装",
+          "priority": "Must",
+          "start": "2025-06-20",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-005-01"]
+        },
+        {
+          "id": "T-005-06",
+          "wbs_code": "5.6",
+          "name": "チラシ一覧表示と詳細画面遷移実装",
+          "priority": "Must",
+          "start": "2025-06-20",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-005-03", "T-005-01"]
+        },
+        {
+          "id": "BUF-5",
+          "wbs_code": "5.7",
+          "name": "検索・チラシ機能開発フェーズバッファ",
+          "priority": "Must",
+          "start": "2025-06-22",
+          "buffer": 2
+        }
+      ]
+    },
+    {
+      "id": "T-006",
+      "wbs_code": "6",
+      "name": "統合・テストフェーズ",
+      "priority": "Must",
+      "start": "2025-06-24",
+      "duration_days": 5,
+      "children": [
+        {
+          "id": "T-006-01",
+          "wbs_code": "6.1",
+          "name": "各機能の統合",
+          "priority": "Must",
+          "start": "2025-06-24",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-004-03", "T-004-06", "T-005-04", "T-005-06"]
+        },
+        {
+          "id": "T-006-02",
+          "wbs_code": "6.2",
+          "name": "デザイン適用",
+          "priority": "Should",
+          "start": "2025-06-24",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-006-01"]
+        },
+        {
+          "id": "T-006-03",
+          "wbs_code": "6.3",
+          "name": "機能テスト",
+          "priority": "Must",
+          "start": "2025-06-24",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-006-01"]
+        },
+        {
+          "id": "T-006-04",
+          "wbs_code": "6.4",
+          "name": "バグ修正",
+          "priority": "Must",
+          "start": "2025-06-26",
+          "duration_days": 1,
+          "assignee": "X3d チーム全員",
+          "dependencies": ["T-006-03"]
+        },
+        {
+          "id": "T-006-05",
+          "wbs_code": "6.5",
+          "name": "パフォーマンス最適化",
+          "priority": "Should",
+          "start": "2025-06-27",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-006-04"]
+        },
+        {
+          "id": "T-006-06",
+          "wbs_code": "6.6",
+          "name": "最終デモ準備",
+          "priority": "Must",
+          "start": "2025-06-27",
+          "duration_days": 1,
+          "assignee": "X3d 加藤",
+          "dependencies": ["T-006-04"]
+        },
+        {
+          "id": "BUF-6",
+          "wbs_code": "6.7",
+          "name": "統合・テストフェーズバッファ",
+          "priority": "Must",
+          "start": "2025-06-28",
+          "buffer": 2
+        }
+      ]
+    },
+    {
+      "id": "T-007",
+      "wbs_code": "7",
+      "name": "Should機能（時間があれば実装）",
+      "priority": "Should",
+      "start": "2025-06-22",
+      "duration_days": 8,
+      "children": [
+        {
+          "id": "T-007-01",
+          "wbs_code": "7.1",
+          "name": "基本的なページング機能実装",
+          "priority": "Should",
+          "start": "2025-06-22",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-005-04"]
+        },
+        {
+          "id": "T-007-02",
+          "wbs_code": "7.2",
+          "name": "表裏ページの切り替え表示実装",
+          "priority": "Should",
+          "start": "2025-06-24",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-007-01"]
+        },
+        {
+          "id": "T-007-03",
+          "wbs_code": "7.3",
+          "name": "2ページ基本UI実装",
+          "priority": "Should",
+          "start": "2025-06-22",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-003-02"]
+        },
+        {
+          "id": "T-007-04",
+          "wbs_code": "7.4",
+          "name": "2ページデータ連携実装",
+          "priority": "Should",
+          "start": "2025-06-24",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-007-03"]
+        },
+        {
+          "id": "T-007-05",
+          "wbs_code": "7.5",
+          "name": "10ページ基本UI実装",
+          "priority": "Should",
+          "start": "2025-06-26",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-003-02"]
+        },
+        {
+          "id": "T-007-06",
+          "wbs_code": "7.6",
+          "name": "10ページデータ連携実装",
+          "priority": "Should",
+          "start": "2025-06-28",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-007-05"]
+        },
+        {
+          "id": "T-007-07",
+          "wbs_code": "7.7",
+          "name": "店舗名での並び替え機能実装",
+          "priority": "Should",
+          "start": "2025-06-22",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-005-06"]
+        },
+        {
+          "id": "T-007-08",
+          "wbs_code": "7.8",
+          "name": "企業選択画面実装",
+          "priority": "Should",
+          "start": "2025-06-22",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-002-03"]
+        }
+      ]
+    },
+    {
+      "id": "T-008",
+      "wbs_code": "8",
+      "name": "Could機能（余裕があれば実装）",
+      "priority": "Could",
+      "start": "2025-06-26",
+      "duration_days": 5,
+      "children": [
+        {
+          "id": "T-008-01",
+          "wbs_code": "8.1",
+          "name": "部分一致検索機能実装",
+          "priority": "Could",
+          "start": "2025-06-26",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-005-02"]
+        },
+        {
+          "id": "T-008-02",
+          "wbs_code": "8.2",
+          "name": "検索候補表示機能実装",
+          "priority": "Could",
+          "start": "2025-06-29",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-008-01"]
+        },
+        {
+          "id": "T-008-03",
+          "wbs_code": "8.3",
+          "name": "多ページチラシの完全対応",
+          "priority": "Could",
+          "start": "2025-06-26",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-007-02"]
+        },
+        {
+          "id": "T-008-04",
+          "wbs_code": "8.4",
+          "name": "ページ間のスムーズな遷移実装",
+          "priority": "Could",
+          "start": "2025-06-28",
+          "duration_days": 1,
+          "assignee": "X3d エンジニア1",
+          "dependencies": ["T-008-03"]
+        },
+        {
+          "id": "T-008-05",
+          "wbs_code": "8.5",
+          "name": "20ページ基本実装",
+          "priority": "Could",
+          "start": "2025-06-26",
+          "duration_days": 3,
+          "assignee": "X3d エンジニア3",
+          "dependencies": ["T-003-02"]
+        },
+        {
+          "id": "T-008-06",
+          "wbs_code": "8.6",
+          "name": "ダウンロード機能実装",
+          "priority": "Could",
+          "start": "2025-06-26",
+          "duration_days": 2,
+          "assignee": "X3d エンジニア2",
+          "dependencies": ["T-005-04"]
+        }
+      ]
+    },
+    {
+      "id": "BUF-7",
+      "wbs_code": "9",
+      "name": "最終バッファ",
+      "priority": "Must",
+      "start": "2025-06-30",
+      "buffer": 3
+    }
+  ]
+}
