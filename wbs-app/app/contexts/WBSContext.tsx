@@ -165,11 +165,27 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
         return tasks;
       };
 
+      // WBSコードを再計算するヘルパー関数
+      const recalculateWBSCodes = (tasks: WBSTask[], parentCode?: string): WBSTask[] => {
+        return tasks.map((task, index) => {
+          const parentCodeForGeneration = parentCode ?? null;
+          const newWBSCode = generateWBSCode(parentCodeForGeneration, index);
+          return {
+            ...task,
+            wbs_code: newWBSCode,
+            children: task.children ? recalculateWBSCodes(task.children, newWBSCode) : task.children
+          };
+        });
+      };
+
+      const updatedWBS = addSiblingToTask(state.project.wbs);
+      const recalculatedWBS = recalculateWBSCodes(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: addSiblingToTask(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]

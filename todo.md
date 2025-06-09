@@ -26,12 +26,23 @@
 ## Claudeレビューで指摘された改善点
 
 ### バグ修正
-- [ ] TaskList.tsx内で `isSelected` の判定を修正（selectedTaskIds.includes(task.id)を使用）
-- [ ] WBSContext.tsx の `ADD_SIBLING_TASK` でWBSコードの再計算を追加
+- ✅ TaskList.tsx内で `isSelected` の判定を修正（selectedTaskIds.includes(task.id)を使用）
+- ✅ WBSContext.tsx の `ADD_SIBLING_TASK` でWBSコードの再計算を追加
 
 ### 可読性の改善
-- [ ] TaskItem コンポーネントを分割（TaskActionsコンポーネントに分離）
-- [ ] 長い三項演算子をヘルパー関数に置き換え（getPriorityClass関数など）
+- ✅ TaskItem コンポーネントを分割（TaskActionsコンポーネントに分離）
+- ✅ 長い三項演算子をヘルパー関数に置き換え（getPriorityClass関数など）
+
+### 追加対応完了
+- ✅ getPriorityClass関数をtask-utils.tsに移動して再利用可能に
+- ✅ TaskActionsコンポーネントにメニュー外クリックで閉じる処理を追加
+- ✅ 子タスクの選択状態と展開状態の正しい管理を実装
+
+注：Claudeレビューで以下の推奨事項（必須ではない）の指摘があったが、今回は対応を見送り
+- recalculateWBSCodes関数に単体テストを追加
+- recalculateWBSCodes関数をwbs-utils.tsに移動してテスタビリティを向上
+- getPriorityClass関数のユニットテストを追加
+（レビュー総評：「全体的に良好な実装。主要なバグは修正済み、現状でも十分に機能します」）
 
 ## 残りの実装予定（Phase 4以降）
 

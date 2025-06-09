@@ -1,41 +1,41 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
 import { ChevronRight, ChevronDown, Plus, Copy, Trash2, MoreVertical, Edit, Expand, Minimize2 } from 'lucide-react';
 import { TaskEditModal } from './TaskEditModal';
 import { TaskFilter, FilterOptions } from './TaskFilter';
-import { filterTasks, getUniqueAssignees, flattenTasks } from '@/app/lib/task-utils';
+import { filterTasks, getUniqueAssignees, flattenTasks, getPriorityClass } from '@/app/lib/task-utils';
 
-interface TaskItemProps {
+interface TaskActionsProps {
   task: WBSTask;
-  level: number;
-  isSelected: boolean;
   isExpanded?: boolean;
-  onToggleSelect: (taskId: string, isCtrlKey: boolean) => void;
   onToggleExpand?: (taskId: string) => void;
   onEditTask: (taskId: string) => void;
 }
 
-function TaskItem({ task, level, isSelected, isExpanded = true, onToggleSelect, onToggleExpand, onEditTask }: TaskItemProps) {
+function TaskActions({ task, isExpanded, onToggleExpand, onEditTask }: TaskActionsProps) {
   const { dispatch } = useWBS();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(task.name);
   const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleNameEdit = () => {
-    if (editName.trim() && editName !== task.name) {
-      dispatch({
-        type: 'UPDATE_TASK',
-        payload: {
-          taskId: task.id,
-          updates: { name: editName.trim() }
-        }
-      });
+  // メニュー外クリックで閉じる処理
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
-    setIsEditing(false);
-  };
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   const handleAddChild = () => {
     dispatch({
@@ -69,6 +69,113 @@ function TaskItem({ task, level, isSelected, isExpanded = true, onToggleSelect, 
         payload: { taskId: task.id }
       });
     }
+  };
+
+  return (
+    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onEditTask(task.id);
+        }}
+        className="p-1 hover:bg-gray-200 rounded"
+        title="詳細編集"
+      >
+        <Edit size={16} />
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleAddChild();
+        }}
+        className="p-1 hover:bg-gray-200 rounded"
+        title="子タスクを追加"
+      >
+        <Plus size={16} />
+      </button>
+      
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(!showMenu);
+          }}
+          className="p-1 hover:bg-gray-200 rounded"
+        >
+          <MoreVertical size={16} />
+        </button>
+        
+        {showMenu && (
+          <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddSibling();
+                setShowMenu(false);
+              }}
+              className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
+            >
+              <Plus size={16} />
+              兄弟タスクを追加
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDuplicate();
+                setShowMenu(false);
+              }}
+              className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
+            >
+              <Copy size={16} />
+              複製
+            </button>
+            <hr className="my-1" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+                setShowMenu(false);
+              }}
+              className="w-full px-4 py-2 text-left hover:bg-gray-100 text-red-600 flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              削除
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface TaskItemProps {
+  task: WBSTask;
+  level: number;
+  isSelected: boolean;
+  isExpanded?: boolean;
+  selectedTaskIds: string[];
+  expandedTaskIds?: Set<string>;
+  onToggleSelect: (taskId: string, isCtrlKey: boolean) => void;
+  onToggleExpand?: (taskId: string) => void;
+  onEditTask: (taskId: string) => void;
+}
+
+function TaskItem({ task, level, isSelected, isExpanded = true, selectedTaskIds, expandedTaskIds, onToggleSelect, onToggleExpand, onEditTask }: TaskItemProps) {
+  const { dispatch } = useWBS();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(task.name);
+
+  const handleNameEdit = () => {
+    if (editName.trim() && editName !== task.name) {
+      dispatch({
+        type: 'UPDATE_TASK',
+        payload: {
+          taskId: task.id,
+          updates: { name: editName.trim() }
+        }
+      });
+    }
+    setIsEditing(false);
   };
 
   const indentStyle = { paddingLeft: `${level * 24}px` };
@@ -130,90 +237,18 @@ function TaskItem({ task, level, isSelected, isExpanded = true, onToggleSelect, 
             </span>
           )}
           
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditTask(task.id);
-              }}
-              className="p-1 hover:bg-gray-200 rounded"
-              title="詳細編集"
-            >
-              <Edit size={16} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddChild();
-              }}
-              className="p-1 hover:bg-gray-200 rounded"
-              title="子タスクを追加"
-            >
-              <Plus size={16} />
-            </button>
-            
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMenu(!showMenu);
-                }}
-                className="p-1 hover:bg-gray-200 rounded"
-              >
-                <MoreVertical size={16} />
-              </button>
-              
-              {showMenu && (
-                <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddSibling();
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
-                  >
-                    <Plus size={16} />
-                    兄弟タスクを追加
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDuplicate();
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
-                  >
-                    <Copy size={16} />
-                    複製
-                  </button>
-                  <hr className="my-1" />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete();
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 text-red-600 flex items-center gap-2"
-                  >
-                    <Trash2 size={16} />
-                    削除
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <TaskActions
+            task={task}
+            isExpanded={isExpanded}
+            onToggleExpand={onToggleExpand}
+            onEditTask={onEditTask}
+          />
         </div>
         
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span>{task.start}</span>
           <span>{task.duration_days}日</span>
-          <span className={`px-2 py-1 rounded text-xs ${
-            task.priority === 'Must' ? 'bg-red-100 text-red-700' :
-            task.priority === 'Should' ? 'bg-yellow-100 text-yellow-700' :
-            task.priority === 'Could' ? 'bg-green-100 text-green-700' :
-            'bg-gray-100 text-gray-700'
-          }`}>
+          <span className={`px-2 py-1 rounded text-xs ${getPriorityClass(task.priority)}`}>
             {task.priority}
           </span>
           <span>{task.assignee || '-'}</span>
@@ -230,8 +265,10 @@ function TaskItem({ task, level, isSelected, isExpanded = true, onToggleSelect, 
           key={child.id}
           task={child}
           level={level + 1}
-          isSelected={isSelected}
-          isExpanded={onToggleExpand ? undefined : true} // 親で管理されている場合はundefined
+          isSelected={selectedTaskIds.includes(child.id)}
+          isExpanded={expandedTaskIds ? expandedTaskIds.has(child.id) : true}
+          selectedTaskIds={selectedTaskIds}
+          expandedTaskIds={expandedTaskIds}
           onToggleSelect={onToggleSelect}
           onToggleExpand={onToggleExpand}
           onEditTask={onEditTask}
@@ -418,6 +455,8 @@ export function TaskList() {
                   level={0}
                   isSelected={selectedTaskIds.includes(task.id)}
                   isExpanded={expandedTaskIds.has(task.id)}
+                  selectedTaskIds={selectedTaskIds}
+                  expandedTaskIds={expandedTaskIds}
                   onToggleSelect={handleToggleSelect}
                   onToggleExpand={handleToggleExpand}
                   onEditTask={setEditingTaskId}
