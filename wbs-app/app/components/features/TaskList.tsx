@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
 import { ChevronRight, ChevronDown, Plus, Copy, Trash2, MoreVertical, Edit } from 'lucide-react';
 import { TaskEditModal } from './TaskEditModal';
+import { TaskFilter, FilterOptions } from './TaskFilter';
+import { filterTasks, getUniqueAssignees } from '@/app/lib/task-utils';
 
 interface TaskItemProps {
   task: WBSTask;
@@ -209,6 +211,11 @@ function TaskItem({ task, level, isSelected, onToggleSelect, onEditTask }: TaskI
             {task.priority}
           </span>
           <span>{task.assignee || '-'}</span>
+          {task.dependencies && task.dependencies.length > 0 && (
+            <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs" title="依存関係あり">
+              依存: {task.dependencies.length}
+            </span>
+          )}
         </div>
       </div>
       
@@ -231,6 +238,25 @@ export function TaskList() {
   const { wbs } = state.project;
   const { selectedTaskIds } = state;
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterOptions>({
+    searchTerm: '',
+    priorities: [],
+    statuses: [],
+    assignees: [],
+    dateRange: 'all',
+    showCriticalOnly: false,
+    showDelayedOnly: false
+  });
+
+  // フィルタリングされたタスクを計算
+  const filteredTasks = useMemo(() => {
+    return filterTasks(wbs, filters);
+  }, [wbs, filters]);
+
+  // 利用可能な担当者一覧を取得
+  const availableAssignees = useMemo(() => {
+    return getUniqueAssignees(wbs);
+  }, [wbs]);
 
   const handleAddRootTask = () => {
     dispatch({ type: 'ADD_ROOT_TASK' });
@@ -269,10 +295,24 @@ export function TaskList() {
 
   return (
     <>
+      {/* フィルタリング機能 */}
+      <TaskFilter
+        filters={filters}
+        onFiltersChange={setFilters}
+        availableAssignees={availableAssignees}
+      />
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">タスク一覧</h2>
+            <div>
+              <h2 className="text-lg font-semibold">タスク一覧</h2>
+              {wbs.length !== filteredTasks.length && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {filteredTasks.length} / {wbs.length} 件のタスクを表示
+                </p>
+              )}
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={handleAddRootTask}
@@ -306,12 +346,14 @@ export function TaskList() {
               </div>
             </div>
             
-            {wbs.length === 0 ? (
+            {filteredTasks.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                タスクがありません。「ルートタスクを追加」ボタンからタスクを作成してください。
+                {wbs.length === 0 
+                  ? 'タスクがありません。「ルートタスクを追加」ボタンからタスクを作成してください。'
+                  : 'フィルタリング条件に一致するタスクがありません。'}
               </div>
             ) : (
-              wbs.map(task => (
+              filteredTasks.map(task => (
                 <TaskItem
                   key={task.id}
                   task={task}
