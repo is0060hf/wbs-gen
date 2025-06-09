@@ -634,6 +634,20 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                           style={{ width: `${task.progress}%` }}
                         />
                       )}
+                      
+                      {/* 進捗数字表示 */}
+                      {task.progress !== undefined && task.progress > 0 && (
+                        <div className={`absolute inset-0 flex items-center justify-center text-xs font-bold pointer-events-none ${
+                          task.progress > 50 ? 'text-white' : 'text-gray-800'
+                        }`}
+                        style={{
+                          textShadow: task.progress > 50 
+                            ? '0 1px 2px rgba(0, 0, 0, 0.8)' 
+                            : '0 1px 2px rgba(255, 255, 255, 0.8)'
+                        }}>
+                          {task.progress}%
+                        </div>
+                      )}
                     </div>
                     
                     {/* ホバー時の詳細情報 */}
