@@ -122,7 +122,7 @@ function MainContent() {
       />
 
       <header className="bg-white dark:bg-gray-800 shadow-sm transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">WBS管理システム</h1>
             <div className="flex items-center gap-2">
@@ -143,7 +143,7 @@ function MainContent() {
       {/* ショートカット一覧（表示時のみ） */}
       {showShortcuts && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 transition-colors">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">キーボードショートカット</h3>
@@ -167,7 +167,7 @@ function MainContent() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           {/* プロジェクトアクション */}
           <div className="flex flex-wrap gap-4 justify-between items-start">
@@ -208,17 +208,29 @@ function MainContent() {
           </div>
 
           {/* サイドパネルとタスクビュー */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* メインコンテンツ */}
-            <div className="lg:col-span-3">
-              {viewMode === 'list' ? <TableView /> : <GanttChart />}
+          {viewMode === 'list' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* メインコンテンツ */}
+              <div className="lg:col-span-3">
+                <TableView />
+              </div>
+              
+              {/* サイドパネル */}
+              <div className="lg:col-span-1 space-y-4">
+                <HistoryPanel />
+              </div>
             </div>
-            
-            {/* サイドパネル */}
-            <div className="lg:col-span-1 space-y-4">
+          ) : (
+            <div className="space-y-6">
+              {/* ガントチャートビュー: 操作履歴を上に配置 */}
               <HistoryPanel />
+              
+              {/* ガントチャート: フル幅で表示 */}
+              <div className="w-full">
+                <GanttChart />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
       

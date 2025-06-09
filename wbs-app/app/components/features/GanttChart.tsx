@@ -416,9 +416,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-screen flex flex-col">
       {/* ヘッダー */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">ガントチャート（日表示）</h2>
           <div className="flex items-center gap-2">
@@ -460,7 +460,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       </div>
 
       {/* ガントチャート本体 */}
-      <div className="overflow-x-auto" ref={chartRef}>
+      <div className="overflow-auto flex-1" ref={chartRef}>
         <div style={{ minWidth: `${Math.max(CHART_CONSTANTS.MIN_CHART_WIDTH, CHART_CONSTANTS.LEFT_OFFSET + getChartWidth(displayDates.length))}px` }}>
           {/* タイムライン ヘッダー */}
           <div className="flex">
@@ -608,7 +608,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       </div>
 
       {/* 凡例 */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50">
+      <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
         <div className="flex items-center justify-between text-sm flex-wrap gap-2">
           <div className="flex items-center gap-4 flex-wrap">
             <span className="text-gray-600">優先度:</span>
