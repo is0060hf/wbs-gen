@@ -88,52 +88,57 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
+  // ガントチャート表示定数
+  const CHART_CONSTANTS = {
+    ROW_HEIGHT: 57,           // タスク行の高さ
+    LEFT_OFFSET: 320,         // タスク名エリアの幅
+    PADDING: 8,              // パディング
+    BAR_VERTICAL_OFFSET: 20,  // タスクバーの垂直オフセット
+    DAY_WIDTH_PX: 60,        // 1日の幅
+    MIN_TASK_WIDTH_PX: 20,   // タスクの最小幅
+    MIN_CHART_WIDTH: 800     // チャート最小幅
+  };
+
+  // チャート全体の幅を計算
+  const getChartWidth = useCallback((dateCount: number) => {
+    return dateCount * CHART_CONSTANTS.DAY_WIDTH_PX;
+  }, []);
+
   // タスクバーの位置とサイズを計算（日表示）
   const getTaskBarStyle = useCallback((task: WBSTask) => {
     const taskStart = new Date(task.start);
     const taskEnd = task.end ? new Date(task.end) : new Date(task.start);
     
     if (displayDates.length === 0) {
-      return { left: '0%', width: '1%' };
+      return { left: '0px', width: `${CHART_CONSTANTS.DAY_WIDTH_PX}px` };
     }
 
     // ガントチャート全体の期間（表示されている範囲）
     const chartStart = new Date(displayDates[0]);
-    const chartEnd = new Date(displayDates[displayDates.length - 1]);
-    
-    // ガントチャート全体の日数を計算（日表示なので単純に日数を計算）
-    const chartTotalDays = displayDates.length;
     
     // タスクの開始位置を計算（チャート開始日からの日数）
-    const startOffsetDays = Math.max(0, (taskStart.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000));
+    const startOffsetDays = (taskStart.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000);
     
     // タスクの日数を計算
     const taskDurationDays = Math.max(1, (taskEnd.getTime() - taskStart.getTime()) / (24 * 60 * 60 * 1000) + 1);
     
-    // タスクの開始位置と幅をパーセンテージで計算
-    const left = (startOffsetDays / chartTotalDays) * 100;
-    const width = (taskDurationDays / chartTotalDays) * 100;
+    // タスクの開始位置と幅をピクセルで計算
+    const left = startOffsetDays * CHART_CONSTANTS.DAY_WIDTH_PX;
+    const width = taskDurationDays * CHART_CONSTANTS.DAY_WIDTH_PX;
     
     // 表示範囲外のタスクの処理
+    const maxWidth = getChartWidth(displayDates.length);
     const effectiveLeft = Math.max(0, left);
-    const effectiveWidth = Math.min(100 - effectiveLeft, width);
+    const effectiveWidth = Math.min(maxWidth - effectiveLeft, width);
     
     // 最小幅の確保（非常に短いタスクでも見えるように）
-    const minWidth = 0.5; // 0.5%の最小幅
+    const minWidth = CHART_CONSTANTS.MIN_TASK_WIDTH_PX;
     
     return {
-      left: `${effectiveLeft}%`,
-      width: `${Math.max(minWidth, effectiveWidth)}%`
+      left: `${effectiveLeft}px`,
+      width: `${Math.max(minWidth, effectiveWidth)}px`
     };
-  }, [displayDates]);
-
-  // ガントチャート表示定数
-  const CHART_CONSTANTS = {
-    ROW_HEIGHT: 57,           // タスク行の高さ
-    LEFT_OFFSET: 320,         // タスク名エリアの幅
-    PADDING: 8,              // パディング
-    BAR_VERTICAL_OFFSET: 20   // タスクバーの垂直オフセット
-  };
+  }, [displayDates, getChartWidth]);
 
   // マウス位置から日付を計算（日表示）
   const getDateFromMousePosition = useCallback((clientX: number) => {
@@ -141,12 +146,10 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     
     const rect = chartRef.current.getBoundingClientRect();
     const chartLeft = rect.left + CHART_CONSTANTS.LEFT_OFFSET;
-    const chartWidth = rect.width - CHART_CONSTANTS.LEFT_OFFSET;
     const relativeX = clientX - chartLeft;
-    const percentage = Math.max(0, Math.min(1, relativeX / chartWidth));
     
-    // どの日に該当するかを計算（日表示なので直接インデックスを計算）
-    const dayIndex = Math.floor(percentage * displayDates.length);
+    // どの日に該当するかを計算
+    const dayIndex = Math.floor(relativeX / CHART_CONSTANTS.DAY_WIDTH_PX);
     const clampedDayIndex = Math.max(0, Math.min(displayDates.length - 1, dayIndex));
     
     return new Date(displayDates[clampedDayIndex]);
@@ -331,11 +334,11 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const chartEnd = new Date(displayDates[displayDates.length - 1]);
     
     if (today < chartStart) return 0;
-    if (today > chartEnd) return 100;
+    if (today > chartEnd) return getChartWidth(displayDates.length);
     
-    // 今日の位置を計算
+    // 今日の位置を計算（ピクセル単位）
     const daysSinceStart = Math.floor((today.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000));
-    const position = (daysSinceStart / displayDates.length) * 100;
+    const position = daysSinceStart * CHART_CONSTANTS.DAY_WIDTH_PX;
     
     return position;
   };
@@ -374,21 +377,17 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const generateDependencyPath = (line: typeof dependencyLines[0]) => {
     if (!chartRef.current) return '';
     
-    // チャート領域の実際の幅を取得
-    const rect = chartRef.current.getBoundingClientRect();
-    const chartWidth = rect.width - CHART_CONSTANTS.LEFT_OFFSET;
-    
     // 開始点（前提タスクの終了位置）
     const fromBarStyle = getTaskBarStyle(line.fromTask);
-    const fromLeftPercentage = parseFloat(fromBarStyle.left.replace('%', ''));
-    const fromWidthPercentage = parseFloat(fromBarStyle.width.replace('%', ''));
-    const fromX = CHART_CONSTANTS.LEFT_OFFSET + ((fromLeftPercentage + fromWidthPercentage) / 100) * chartWidth;
+    const fromLeft = parseFloat(fromBarStyle.left.replace('px', ''));
+    const fromWidth = parseFloat(fromBarStyle.width.replace('px', ''));
+    const fromX = CHART_CONSTANTS.LEFT_OFFSET + fromLeft + fromWidth;
     const fromY = (line.fromIndex + 1) * CHART_CONSTANTS.ROW_HEIGHT + CHART_CONSTANTS.BAR_VERTICAL_OFFSET;
 
     // 終了点（後続タスクの開始位置）
     const toBarStyle = getTaskBarStyle(line.toTask);
-    const toLeftPercentage = parseFloat(toBarStyle.left.replace('%', ''));
-    const toX = CHART_CONSTANTS.LEFT_OFFSET + (toLeftPercentage / 100) * chartWidth;
+    const toLeft = parseFloat(toBarStyle.left.replace('px', ''));
+    const toX = CHART_CONSTANTS.LEFT_OFFSET + toLeft;
     const toY = (line.toIndex + 1) * CHART_CONSTANTS.ROW_HEIGHT + CHART_CONSTANTS.BAR_VERTICAL_OFFSET;
 
     // 中継点を使った滑らかな線
@@ -462,18 +461,19 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
       {/* ガントチャート本体 */}
       <div className="overflow-x-auto" ref={chartRef}>
-        <div className="min-w-[800px]">
+        <div style={{ minWidth: `${Math.max(CHART_CONSTANTS.MIN_CHART_WIDTH, CHART_CONSTANTS.LEFT_OFFSET + getChartWidth(displayDates.length))}px` }}>
           {/* タイムライン ヘッダー */}
           <div className="flex">
             <div className="w-80 flex-shrink-0 bg-gray-50 border-b border-gray-200 p-3">
               <div className="font-medium text-gray-700">タスク</div>
             </div>
-            <div className="flex-1 bg-gray-50 border-b border-gray-200">
+            <div className="bg-gray-50 border-b border-gray-200" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
               <div className="flex">
                 {displayDates.map((date, index) => (
                   <div
                     key={index}
-                    className="flex-1 min-w-[60px] p-2 text-xs text-center border-r border-gray-200 last:border-r-0"
+                    className="p-2 text-xs text-center border-r border-gray-200 last:border-r-0"
+                    style={{ width: `${CHART_CONSTANTS.DAY_WIDTH_PX}px` }}
                   >
                     {formatDate(date)}
                   </div>
@@ -487,7 +487,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
             {/* 現在日のライン */}
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-              style={{ left: `calc(320px + ${getTodayLinePosition()}%)` }}
+              style={{ left: `${320 + getTodayLinePosition()}px` }}
             />
 
             {/* 依存関係線のSVG */}
@@ -552,7 +552,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 </div>
 
                 {/* タスクバー */}
-                <div className="flex-1 p-2 relative">
+                <div className="p-2 relative" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
                   <div className="relative h-6">
                     <div
                       className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusOpacity(task.status)} cursor-move hover:shadow-md transition-all duration-200 ${
