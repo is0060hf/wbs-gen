@@ -1,19 +1,17 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { useWBS } from '@/app/hooks/useWBS';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { WBSTask } from '@/app/lib/types';
-import { flattenTasks, identifyCriticalPath } from '@/app/lib/task-utils';
+import { flattenTasks } from '@/app/lib/task-utils';
 import { calculateEndDate } from '@/app/lib/wbs-utils';
-import { Calendar, ZoomIn, ZoomOut, RotateCcw, GitBranch, Zap } from 'lucide-react';
-
-type ViewMode = 'day' | 'week' | 'month';
+import { useWBS } from '@/app/hooks/useWBS';
+import { identifyCriticalPath } from '@/app/lib/task-utils';
+import { Calendar, RotateCcw, GitBranch, Zap } from 'lucide-react';
 
 interface GanttChartProps {
   tasks?: WBSTask[];
 }
 
-// ドラッグ状態の型定義
 interface DragState {
   isDragging: boolean;
   taskId: string | null;
@@ -26,8 +24,7 @@ interface DragState {
 export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const { state, dispatch } = useWBS();
   const tasks = propTasks || state.project.wbs;
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
-  const [zoomLevel, setZoomLevel] = useState(1);
+  // 日表示のみ
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showDependencies, setShowDependencies] = useState(true);
   const [highlightCriticalPath, setHighlightCriticalPath] = useState(false);
@@ -42,7 +39,6 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   
   const chartRef = useRef<HTMLDivElement>(null);
 
-  // タスクを平坦化
   const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
 
   // クリティカルパスの識別
@@ -50,28 +46,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     return identifyCriticalPath(tasks);
   }, [tasks]);
 
-  // ズーム機能
-  const handleZoomIn = useCallback(() => {
-    if (viewMode === 'month') {
-      setViewMode('week');
-    } else if (viewMode === 'week') {
-      setViewMode('day');
-    } else {
-      setZoomLevel(prev => Math.min(prev * 1.5, 3));
-    }
-  }, [viewMode]);
-
-  const handleZoomOut = useCallback(() => {
-    if (viewMode === 'day') {
-      setViewMode('week');
-    } else if (viewMode === 'week') {
-      setViewMode('month');
-    } else {
-      setZoomLevel(prev => Math.max(prev / 1.5, 0.5));
-    }
-  }, [viewMode]);
-
-  // 日付範囲の計算（ズームレベルを考慮）
+  // 日付範囲の計算（日表示用）
   const dateRange = useMemo(() => {
     if (flatTasks.length === 0) {
       const today = new Date();
@@ -89,61 +64,31 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const minDate = new Date(Math.min(...taskDates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...taskDates.map(d => d.getTime())));
 
-    // バッファを追加（ズームレベルに応じて調整）
-    const bufferDays = Math.floor(7 / zoomLevel);
-    minDate.setDate(minDate.getDate() - bufferDays);
-    maxDate.setDate(maxDate.getDate() + bufferDays);
+    // バッファを追加（前後7日）
+    minDate.setDate(minDate.getDate() - 7);
+    maxDate.setDate(maxDate.getDate() + 7);
 
     return { start: minDate, end: maxDate };
-  }, [flatTasks, zoomLevel]);
+  }, [flatTasks]);
 
-  // 表示用の日付配列を生成（ズームレベルを考慮）
+  // 表示用の日付配列を生成（日表示）
   const displayDates = useMemo(() => {
     const dates: Date[] = [];
     const current = new Date(dateRange.start);
     
     while (current <= dateRange.end) {
       dates.push(new Date(current));
-      switch (viewMode) {
-        case 'day':
-          current.setDate(current.getDate() + Math.ceil(1 / zoomLevel));
-          break;
-        case 'week':
-          current.setDate(current.getDate() + Math.ceil(7 / zoomLevel));
-          break;
-        case 'month':
-          current.setMonth(current.getMonth() + Math.ceil(1 / zoomLevel));
-          break;
-      }
+      current.setDate(current.getDate() + 1); // 1日ごと
     }
     return dates;
-  }, [dateRange, viewMode, zoomLevel]);
+  }, [dateRange]);
 
-  // ビューモードに応じた単位期間を取得（共通関数）
-  const getUnitDays = useCallback(() => {
-    switch (viewMode) {
-      case 'day': return Math.ceil(1 / zoomLevel);
-      case 'week': return Math.ceil(7 / zoomLevel);
-      case 'month': return Math.ceil(30 / zoomLevel); // 月は約30日として計算
-      default: return 1;
-    }
-  }, [viewMode, zoomLevel]);
-
-  // 日付フォーマット
+  // 日付フォーマット（日表示のみ）
   const formatDate = (date: Date) => {
-    switch (viewMode) {
-      case 'day':
-        return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
-      case 'week':
-        const weekEnd = new Date(date);
-        weekEnd.setDate(date.getDate() + Math.ceil(6 / zoomLevel));
-        return `${date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}`;
-      case 'month':
-        return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short' });
-    }
+    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
-  // タスクバーの位置とサイズを計算（ビューモードに対応）
+  // タスクバーの位置とサイズを計算（日表示）
   const getTaskBarStyle = useCallback((task: WBSTask) => {
     const taskStart = new Date(task.start);
     const taskEnd = task.end ? new Date(task.end) : new Date(task.start);
@@ -156,21 +101,14 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const chartStart = new Date(displayDates[0]);
     const chartEnd = new Date(displayDates[displayDates.length - 1]);
     
-    // ビューモードに応じた単位期間を取得
-    const unitDays = getUnitDays();
+    // ガントチャート全体の日数を計算（日表示なので単純に日数を計算）
+    const chartTotalDays = displayDates.length;
     
-    // チャートの最終日を正確に計算
-    const chartEndAdjusted = new Date(chartEnd);
-    chartEndAdjusted.setDate(chartEnd.getDate() + unitDays - 1);
-    
-    // ガントチャート全体の日数を計算
-    const chartTotalDays = (chartEndAdjusted.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000) + 1;
-    
-    // タスクの実際の日数を計算
-    const taskDurationDays = (taskEnd.getTime() - taskStart.getTime()) / (24 * 60 * 60 * 1000) + 1;
-    
-    // タスク開始位置の計算（チャート開始日からの日数）
+    // タスクの開始位置を計算（チャート開始日からの日数）
     const startOffsetDays = Math.max(0, (taskStart.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000));
+    
+    // タスクの日数を計算
+    const taskDurationDays = Math.max(1, (taskEnd.getTime() - taskStart.getTime()) / (24 * 60 * 60 * 1000) + 1);
     
     // タスクの開始位置と幅をパーセンテージで計算
     const left = (startOffsetDays / chartTotalDays) * 100;
@@ -187,7 +125,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       left: `${effectiveLeft}%`,
       width: `${Math.max(minWidth, effectiveWidth)}%`
     };
-  }, [displayDates, getUnitDays]);
+  }, [displayDates]);
 
   // ガントチャート表示定数
   const CHART_CONSTANTS = {
@@ -197,7 +135,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     BAR_VERTICAL_OFFSET: 20   // タスクバーの垂直オフセット
   };
 
-  // マウス位置から日付を計算（ビューモードに対応）
+  // マウス位置から日付を計算（日表示）
   const getDateFromMousePosition = useCallback((clientX: number) => {
     if (!chartRef.current || displayDates.length === 0) return null;
     
@@ -207,22 +145,12 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const relativeX = clientX - chartLeft;
     const percentage = Math.max(0, Math.min(1, relativeX / chartWidth));
     
-    // どのカラムに該当するかを計算
-    const columnIndex = Math.floor(percentage * displayDates.length);
-    const clampedColumnIndex = Math.max(0, Math.min(displayDates.length - 1, columnIndex));
+    // どの日に該当するかを計算（日表示なので直接インデックスを計算）
+    const dayIndex = Math.floor(percentage * displayDates.length);
+    const clampedDayIndex = Math.max(0, Math.min(displayDates.length - 1, dayIndex));
     
-    // カラム内での位置を計算
-    const columnPercentage = (percentage * displayDates.length) - columnIndex;
-    
-    const unitDays = getUnitDays();
-    const columnStart = new Date(displayDates[clampedColumnIndex]);
-    const offsetDays = Math.floor(columnPercentage * unitDays);
-    
-    const resultDate = new Date(columnStart);
-    resultDate.setDate(columnStart.getDate() + offsetDays);
-    
-    return resultDate;
-  }, [displayDates, getUnitDays, zoomLevel]);
+    return new Date(displayDates[clampedDayIndex]);
+  }, [displayDates]);
 
   // ドラッグ開始
   const handleMouseDown = useCallback((e: React.MouseEvent, task: WBSTask, dragType: 'start' | 'end' | 'move') => {
@@ -391,34 +319,25 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     }
   };
 
-  // 現在日のライン位置（ビューモードに対応）
+  // 現在日のライン位置（日表示）
   const getTodayLinePosition = () => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // 時刻をリセット
     
     if (displayDates.length === 0) return 0;
     
-    const unitDays = getUnitDays();
+    // 今日がdisplayDatesのどこに位置するかを検索
+    const chartStart = new Date(displayDates[0]);
+    const chartEnd = new Date(displayDates[displayDates.length - 1]);
     
-    // 今日がどのカラムに該当するかを検索
-    for (let i = 0; i < displayDates.length; i++) {
-      const columnStart = new Date(displayDates[i]);
-      const columnEnd = new Date(columnStart);
-      columnEnd.setDate(columnStart.getDate() + unitDays - 1);
-      
-      if (today >= columnStart && today <= columnEnd) {
-        // カラム内での位置を計算
-        const divisor = (columnEnd.getTime() - columnStart.getTime()) || 1;
-        const positionInColumn = (today.getTime() - columnStart.getTime()) / divisor;
-        const columnWidth = 100 / displayDates.length;
-        return (i + positionInColumn) * columnWidth;
-      }
-    }
+    if (today < chartStart) return 0;
+    if (today > chartEnd) return 100;
     
-    // 範囲外の場合
-    if (today < displayDates[0]) return 0;
-    if (today > displayDates[displayDates.length - 1]) return 100;
+    // 今日の位置を計算
+    const daysSinceStart = Math.floor((today.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000));
+    const position = (daysSinceStart / displayDates.length) * 100;
     
-    return 50; // フォールバック
+    return position;
   };
 
   // 依存関係線の描画用データ生成
@@ -451,7 +370,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     return lines;
   }, [flatTasks, showDependencies]);
 
-  // 依存関係線のSVGパス生成（ビューモードに対応）
+  // 依存関係線のSVGパス生成
   const generateDependencyPath = (line: typeof dependencyLines[0]) => {
     if (!chartRef.current) return '';
     
@@ -483,8 +402,6 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
   const handleReset = () => {
     setCurrentDate(new Date());
-    setViewMode('week');
-    setZoomLevel(1);
   };
 
   if (flatTasks.length === 0) {
@@ -504,46 +421,8 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       {/* ヘッダー */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold">ガントチャート</h2>
+          <h2 className="text-lg font-semibold">ガントチャート（日表示）</h2>
           <div className="flex items-center gap-2">
-            {/* ビューモード切替 */}
-            <div className="flex rounded-md border border-gray-300 overflow-hidden">
-              {(['day', 'week', 'month'] as ViewMode[]).map(mode => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1 text-sm ${
-                    viewMode === mode
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {mode === 'day' ? '日' : mode === 'week' ? '週' : '月'}
-                </button>
-              ))}
-            </div>
-
-            {/* ズーム機能 */}
-            <div className="flex rounded-md border border-gray-300 overflow-hidden">
-              <button
-                onClick={handleZoomOut}
-                className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-                title="ズームアウト"
-              >
-                <ZoomOut size={16} />
-              </button>
-              <div className="px-3 py-2 text-sm bg-gray-50 border-x border-gray-300 min-w-[60px] text-center">
-                {Math.round(zoomLevel * 100)}%
-              </div>
-              <button
-                onClick={handleZoomIn}
-                className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-                title="ズームイン"
-              >
-                <ZoomIn size={16} />
-              </button>
-            </div>
-
             {/* 依存関係線の表示切替 */}
             <button
               onClick={() => setShowDependencies(!showDependencies)}
@@ -583,7 +462,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
       {/* ガントチャート本体 */}
       <div className="overflow-x-auto" ref={chartRef}>
-        <div className="min-w-[800px]" style={{ minWidth: `${800 * zoomLevel}px` }}>
+        <div className="min-w-[800px]">
           {/* タイムライン ヘッダー */}
           <div className="flex">
             <div className="w-80 flex-shrink-0 bg-gray-50 border-b border-gray-200 p-3">
@@ -595,7 +474,6 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                   <div
                     key={index}
                     className="flex-1 min-w-[60px] p-2 text-xs text-center border-r border-gray-200 last:border-r-0"
-                    style={{ minWidth: `${60 * zoomLevel}px` }}
                   >
                     {formatDate(date)}
                   </div>
