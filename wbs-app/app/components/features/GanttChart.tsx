@@ -120,7 +120,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const startOffsetDays = (taskStart.getTime() - chartStart.getTime()) / (24 * 60 * 60 * 1000);
     
     // タスクの日数を計算
-    const taskDurationDays = Math.max(1, (taskEnd.getTime() - taskStart.getTime()) / (24 * 60 * 60 * 1000) + 1);
+    const taskDurationDays = Math.max(0.5, (taskEnd.getTime() - taskStart.getTime()) / (24 * 60 * 60 * 1000) + 1);
     
     // タスクの開始位置と幅をピクセルで計算
     const left = startOffsetDays * CHART_CONSTANTS.DAY_WIDTH_PX;
@@ -148,11 +148,20 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const chartLeft = rect.left + CHART_CONSTANTS.LEFT_OFFSET;
     const relativeX = clientX - chartLeft;
     
-    // どの日に該当するかを計算
+    // どの日に該当するかを計算（0.5日単位も考慮）
     const dayIndex = Math.floor(relativeX / CHART_CONSTANTS.DAY_WIDTH_PX);
-    const clampedDayIndex = Math.max(0, Math.min(displayDates.length - 1, dayIndex));
+    const pixelInDay = relativeX % CHART_CONSTANTS.DAY_WIDTH_PX;
+    const isHalfDay = pixelInDay >= CHART_CONSTANTS.DAY_WIDTH_PX / 2;
     
-    return new Date(displayDates[clampedDayIndex]);
+    const clampedDayIndex = Math.max(0, Math.min(displayDates.length - 1, dayIndex));
+    const baseDate = new Date(displayDates[clampedDayIndex]);
+    
+    // 0.5日単位で調整
+    if (isHalfDay && dayIndex < displayDates.length - 1) {
+      baseDate.setHours(12, 0, 0, 0); // 半日を表現
+    }
+    
+    return baseDate;
   }, [displayDates]);
 
   // ドラッグ開始
@@ -164,7 +173,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       dragType,
       originalStart: task.start,
       originalEnd: task.end || task.start,
-      originalDuration: task.duration_days || 1
+      originalDuration: task.duration_days || 0.5
     });
   }, []);
 
@@ -186,11 +195,15 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     switch (dragState.dragType) {
       case 'start':
         newStart = newDateStr;
-        newDuration = Math.max(1, Math.ceil((originalEndDate.getTime() - newDate.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+        // 0.5日単位で丸める
+        const durationStart = (originalEndDate.getTime() - newDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
+        newDuration = Math.max(0.5, Math.round(durationStart * 2) / 2);
         break;
       case 'end':
         newEnd = newDateStr;
-        newDuration = Math.max(1, Math.ceil((newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+        // 0.5日単位で丸める
+        const durationEnd = (newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
+        newDuration = Math.max(0.5, Math.round(durationEnd * 2) / 2);
         break;
       case 'move':
         const daysDiff = Math.round((newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000));
@@ -241,11 +254,15 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     switch (dragState.dragType) {
       case 'start':
         updates.start = newDateStr;
-        updates.duration_days = Math.max(1, Math.ceil((originalEndDate.getTime() - newDate.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+        // 0.5日単位で丸める
+        const durationStart = (originalEndDate.getTime() - newDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
+        updates.duration_days = Math.max(0.5, Math.round(durationStart * 2) / 2);
         break;
       case 'end':
         updates.end = newDateStr;
-        updates.duration_days = Math.max(1, Math.ceil((newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+        // 0.5日単位で丸める
+        const durationEnd = (newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
+        updates.duration_days = Math.max(0.5, Math.round(durationEnd * 2) / 2);
         break;
       case 'move':
         const daysDiff = Math.round((newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000));
