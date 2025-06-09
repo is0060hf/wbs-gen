@@ -329,13 +329,25 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const getStatusOpacity = (status?: string) => {
     switch (status) {
       case 'Completed':
-        return 'opacity-60';
+        return 'opacity-100'; // 完了タスクも完全に表示
       case 'In Progress':
         return 'opacity-90';
       case 'Delayed':
         return 'opacity-100 animate-pulse';
       default:
-        return 'opacity-75';
+        return 'opacity-100'; // すべて不透明に
+    }
+  };
+
+  // ステータスによるパターンクラス（WCAG対応）
+  const getStatusPattern = (status?: string) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-stripes border-2 border-gray-600'; // 斜線パターンとボーダー
+      case 'Delayed':
+        return 'border-2 border-dashed border-red-600';
+      default:
+        return '';
     }
   };
 
@@ -572,34 +584,53 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 <div className="p-2 relative" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
                   <div className="relative h-6">
                     <div
-                      className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusOpacity(task.status)} cursor-move hover:shadow-md transition-all duration-200 ${
+                      className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusPattern(task.status)} cursor-move hover:shadow-md transition-all duration-200 ${
                         dragState.isDragging && dragState.taskId === task.id ? 'shadow-lg ring-2 ring-blue-300' : ''
                       }`}
                       style={getTaskBarStyle(task)}
                       onMouseDown={(e) => handleMouseDown(e, task, 'move')}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${task.name}: ${task.start}から${task.end}まで。ドラッグして日程変更可能`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          // キーボードでの操作をサポート（将来的な実装）
+                        }
+                      }}
                     >
                       {/* 左端のリサイズハンドル */}
                       <div
-                        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 hover:opacity-100 hover:bg-blue-500 rounded-l transition-opacity"
+                        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-l transition-opacity"
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           handleMouseDown(e, task, 'start');
                         }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="開始日を変更"
                       />
                       
                       {/* 右端のリサイズハンドル */}
                       <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 hover:opacity-100 hover:bg-blue-500 rounded-r transition-opacity"
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-r transition-opacity"
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           handleMouseDown(e, task, 'end');
                         }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="終了日を変更"
                       />
 
                       {/* 進捗表示 */}
                       {task.progress && task.progress > 0 && (
                         <div
-                          className="h-full bg-white bg-opacity-40 rounded-l pointer-events-none"
+                          className={`h-full rounded-l pointer-events-none ${
+                            task.status === 'Completed' 
+                              ? 'bg-gray-800 bg-opacity-30' 
+                              : 'bg-gray-900 bg-opacity-20'
+                          }`}
                           style={{ width: `${task.progress}%` }}
                         />
                       )}
@@ -628,29 +659,41 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
         <div className="flex items-center justify-between text-sm flex-wrap gap-2">
           <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-gray-600">優先度:</span>
+            <span className="text-gray-600 font-medium">優先度:</span>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded"></div>
+              <div className="w-3 h-3 bg-red-500 rounded" role="img" aria-label="Must優先度"></div>
               <span>Must</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+              <div className="w-3 h-3 bg-yellow-500 rounded" role="img" aria-label="Should優先度"></div>
               <span>Should</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded"></div>
+              <div className="w-3 h-3 bg-green-500 rounded" role="img" aria-label="Could優先度"></div>
               <span>Could</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-gray-500 rounded"></div>
+              <div className="w-3 h-3 bg-gray-500 rounded" role="img" aria-label="Won't優先度"></div>
               <span>Won't</span>
+            </div>
+            
+            {/* ステータス凡例を追加 */}
+            <div className="mx-2 h-4 w-px bg-gray-300"></div>
+            <span className="text-gray-600 font-medium">ステータス:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-3 bg-blue-500 bg-stripes border-2 border-gray-600 rounded" role="img" aria-label="完了ステータス"></div>
+              <span>完了</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-3 bg-blue-500 border-2 border-dashed border-red-600 rounded" role="img" aria-label="遅延ステータス"></div>
+              <span>遅延</span>
             </div>
             
             {highlightCriticalPath && (
               <>
                 <div className="mx-2 h-4 w-px bg-gray-300"></div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-red-600 rounded border border-orange-300"></div>
+                  <div className="w-3 h-3 bg-gradient-to-r from-orange-500 to-red-600 rounded border border-orange-300" role="img" aria-label="クリティカルパス"></div>
                   <span className="text-orange-700 font-medium">クリティカルパス</span>
                 </div>
               </>

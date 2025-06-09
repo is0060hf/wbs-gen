@@ -103,7 +103,7 @@ function TaskActions({ task, isExpanded, onToggleExpand, onEditTask }: TaskActio
   };
 
   return (
-    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
       <button
         onClick={(e) => {
           e.stopPropagation();

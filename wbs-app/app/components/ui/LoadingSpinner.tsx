@@ -78,10 +78,12 @@ export function LoadingButton({
     <button
       type={type}
       onClick={onClick}
-      disabled={disabled || isLoading}
-      className={`flex items-center gap-2 ${className} ${
-        (disabled || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
+      className={`${className} ${
+        (disabled || isLoading) ? 'cursor-not-allowed bg-gray-300 text-gray-600' : ''
       }`}
+      disabled={disabled || isLoading}
+      aria-busy={isLoading}
+      aria-disabled={disabled || isLoading}
     >
       {isLoading && <LoadingSpinner size="sm" />}
       {children}
