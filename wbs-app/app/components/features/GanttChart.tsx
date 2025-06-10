@@ -141,8 +141,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     if (!chartRef.current || displayDates.length === 0) return null;
     
     const rect = chartRef.current.getBoundingClientRect();
+    const scrollLeft = chartRef.current.scrollLeft; // スクロール位置を取得
     const chartLeft = rect.left + CHART_CONSTANTS.LEFT_OFFSET;
-    const relativeX = clientX - chartLeft;
+    const relativeX = clientX - chartLeft + scrollLeft; // スクロール位置を考慮
     
     // どの日に該当するかを計算（0.5日単位も考慮）
     const dayIndex = Math.floor(relativeX / CHART_CONSTANTS.DAY_WIDTH_PX);
