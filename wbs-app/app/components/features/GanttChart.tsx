@@ -37,6 +37,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartBodyRef = useRef<HTMLDivElement>(null);
 
+  // ドラッグによる値変更があったかを記録するRef
+  const wasValueChangedByDrag = useRef(false);
+
   const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
 
   // クリティカルパスの識別
@@ -83,18 +86,28 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
   // 日付フォーマット（日表示のみ）
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const days = ['日', '月', '火', '水', '木', '金', '土'];
+    const dayOfWeek = days[date.getDay()] || '';
+    return `${month}/${day}(${dayOfWeek})`;
+  };
+
+  // 土日判定
+  const isWeekend = (date: Date) => {
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6; // 0:日曜, 6:土曜
   };
 
   // ガントチャート表示定数
   const CHART_CONSTANTS = {
-    ROW_HEIGHT: 57,           // タスク行の高さ
-    LEFT_OFFSET: 320,         // タスク名エリアの幅
-    PADDING: 8,              // パディング
-    BAR_VERTICAL_OFFSET: 20,  // タスクバーの垂直オフセット
-    DAY_WIDTH_PX: 60,        // 1日の幅
-    MIN_TASK_WIDTH_PX: 20,   // タスクの最小幅
-    MIN_CHART_WIDTH: 800     // チャート最小幅
+    MIN_CHART_WIDTH: 1200,
+    LEFT_OFFSET: 320,  // タスク名列の幅と同じ
+    ROW_HEIGHT: 48,    // 各行の高さ（上下のパディング込み）
+    BAR_VERTICAL_OFFSET: 24, // バーの垂直位置（中央配置）
+    DAY_WIDTH_PX: 60,  // 1日あたりの幅（ピクセル）
+    MIN_TASK_WIDTH_PX: 20, // タスクバーの最小幅
+    WEEKEND_BG_COLOR: 'bg-gray-200', // 土日の背景色
   };
 
   // チャート全体の幅を計算
@@ -266,6 +279,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     const originalEndDate = new Date(dragState.originalEnd);
 
     let updates: Partial<WBSTask> = {};
+    let hasChanged = false;
 
     switch (dragState.dragType) {
       case 'start':
@@ -273,12 +287,14 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
         // 0.5日単位で丸める
         const durationStart = (originalEndDate.getTime() - newDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
         updates.duration_days = Math.max(0.5, Math.round(durationStart * 2) / 2);
+        hasChanged = updates.start !== dragState.originalStart || updates.duration_days !== dragState.originalDuration;
         break;
       case 'end':
         updates.end = newDateStr;
         // 0.5日単位で丸める
         const durationEnd = (newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
         updates.duration_days = Math.max(0.5, Math.round(durationEnd * 2) / 2);
+        hasChanged = updates.end !== dragState.originalEnd || updates.duration_days !== dragState.originalDuration;
         break;
       case 'move':
         const daysDiff = Math.round((newDate.getTime() - originalStartDate.getTime()) / (24 * 60 * 60 * 1000));
@@ -286,17 +302,24 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
         newStartDate.setDate(originalStartDate.getDate() + daysDiff);
         updates.start = newStartDate.toISOString().split('T')[0];
         updates.duration_days = dragState.originalDuration;
+        hasChanged = updates.start !== dragState.originalStart;
         break;
     }
 
-    // タスクを更新
-    dispatch({
-      type: 'UPDATE_TASK',
-      payload: {
-        taskId: dragState.taskId,
-        updates
-      }
-    });
+    // 値が変更された場合のみ更新
+    if (hasChanged) {
+      // 値が変更されたことを記録
+      wasValueChangedByDrag.current = true;
+      
+      // タスクを更新
+      dispatch({
+        type: 'UPDATE_TASK',
+        payload: {
+          taskId: dragState.taskId,
+          updates
+        }
+      });
+    }
 
     setDragState(null);
   }, [dragState, getDateFromMousePosition, dispatch]);
@@ -510,7 +533,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 {displayDates.map((date, index) => (
                   <div
                     key={index}
-                    className="p-2 text-xs text-center border-r border-gray-200 last:border-r-0"
+                    className={`p-2 text-xs text-center border-r border-gray-200 last:border-r-0 ${
+                      isWeekend(date) ? CHART_CONSTANTS.WEEKEND_BG_COLOR : ''
+                    }`}
                     style={{ width: `${CHART_CONSTANTS.DAY_WIDTH_PX}px` }}
                   >
                     {formatDate(date)}
@@ -532,6 +557,21 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
           <div style={{ minWidth: `${Math.max(CHART_CONSTANTS.MIN_CHART_WIDTH, CHART_CONSTANTS.LEFT_OFFSET + getChartWidth(displayDates.length))}px` }}>
             {/* タスク行 */}
             <div className="relative">
+            {/* 土日の背景 */}
+            {displayDates.map((date, index) => (
+              isWeekend(date) && (
+                <div
+                  key={`weekend-${index}`}
+                  className={`absolute top-0 bottom-0 ${CHART_CONSTANTS.WEEKEND_BG_COLOR} opacity-50`}
+                  style={{
+                    left: `${CHART_CONSTANTS.LEFT_OFFSET + index * CHART_CONSTANTS.DAY_WIDTH_PX}px`,
+                    width: `${CHART_CONSTANTS.DAY_WIDTH_PX}px`,
+                    height: `${flatTasks.length * CHART_CONSTANTS.ROW_HEIGHT}px`
+                  }}
+                />
+              )
+            ))}
+            
             {/* 現在日のライン */}
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
@@ -611,11 +651,13 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       style={getTaskBarStyle(task)}
                       onMouseDown={(e) => handleMouseDown(e, task.id, 'move')}
                       onClick={(e) => {
-                        // ドラッグが発生していない場合のみ編集モーダルを開く
-                        if (!dragState?.hasMoved) {
+                        // ドラッグによる値変更があった場合は編集モーダルを開かない
+                        if (!wasValueChangedByDrag.current) {
                           e.stopPropagation();
                           setEditingTaskId(task.id);
                         }
+                        // クリックイベント処理後にフラグをリセット
+                        wasValueChangedByDrag.current = false;
                       }}
                       tabIndex={0}
                       role="button"
