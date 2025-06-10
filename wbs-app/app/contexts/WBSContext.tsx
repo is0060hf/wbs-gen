@@ -12,7 +12,9 @@ import {
   findParentTask,
   calculateEndDate,
   recalculateParentTasks,
-  isParentTask
+  isParentTask,
+  isDescendantOf,
+  recalculateWBSCodes
 } from '@/app/lib/wbs-utils';
 import { generateSampleProject } from '@/app/lib/sample-data';
 import { useHistory } from '@/app/hooks/useHistory';
@@ -33,7 +35,8 @@ type WBSAction =
   | { type: 'DUPLICATE_TASK'; payload: { taskId: string } }
   | { type: 'SET_SELECTED_TASKS'; payload: string[] }
   | { type: 'BULK_DELETE_TASKS' }
-  | { type: 'BULK_UPDATE_TASKS'; payload: Partial<WBSTask> };
+  | { type: 'BULK_UPDATE_TASKS'; payload: Partial<WBSTask> }
+  | { type: 'MOVE_TASK'; payload: { taskId: string; targetId: string; position: 'before' | 'after' | 'inside' } };
 
 // 状態の型
 interface WBSState {
@@ -169,19 +172,6 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
           }
         }
         return tasks;
-      };
-
-      // WBSコードを再計算するヘルパー関数
-      const recalculateWBSCodes = (tasks: WBSTask[], parentCode?: string): WBSTask[] => {
-        return tasks.map((task, index) => {
-          const parentCodeForGeneration = parentCode ?? null;
-          const newWBSCode = generateWBSCode(parentCodeForGeneration, index);
-          return {
-            ...task,
-            wbs_code: newWBSCode,
-            children: task.children ? recalculateWBSCodes(task.children, newWBSCode) : task.children
-          };
-        });
       };
 
       const updatedWBS = addSiblingToTask(state.project.wbs);
@@ -424,6 +414,101 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
       };
     }
 
+    case 'MOVE_TASK': {
+      const { taskId, targetId, position } = action.payload;
+      
+      // 自分自身への移動は無視
+      if (taskId === targetId) return state;
+      
+      // ドラッグされたタスクを見つける
+      const draggedTask = findTaskById(state.project.wbs, taskId);
+      if (!draggedTask) return state;
+      
+      // 自分の子孫への移動は無視
+      if (isDescendantOf(draggedTask, targetId)) return state;
+      
+      // タスクを削除して取得
+      let movedTask: WBSTask | null = null;
+      const removeTask = (tasks: WBSTask[]): WBSTask[] => {
+        return tasks.filter(task => {
+          if (task.id === taskId) {
+            movedTask = task;
+            return false;
+          }
+          if (task.children) {
+            task.children = removeTask(task.children);
+          }
+          return true;
+        });
+      };
+
+      // タスクを挿入
+      const insertTask = (tasks: WBSTask[], parentWBSCode?: string): WBSTask[] => {
+        if (!movedTask) return tasks;
+
+        const result: WBSTask[] = [];
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          
+          if (task.id === targetId) {
+            if (position === 'before') {
+              result.push(movedTask);
+              result.push(task);
+            } else if (position === 'after') {
+              result.push(task);
+              result.push(movedTask);
+            } else if (position === 'inside') {
+              result.push({
+                ...task,
+                children: [...(task.children || []), movedTask]
+              });
+            }
+          } else {
+            if (task.children && task.children.length > 0) {
+              const updatedChildren = insertTask(task.children, task.wbs_code);
+              result.push({
+                ...task,
+                children: updatedChildren
+              });
+            } else {
+              result.push(task);
+            }
+          }
+        }
+        
+        // ルートレベルで挿入する場合
+        if (position === 'inside' && !result.find(t => t.id === targetId)) {
+          result.push(movedTask);
+        }
+        
+        return result;
+      };
+
+      // まずタスクを削除
+      const wbsWithoutTask = removeTask(deepCopyTasks(state.project.wbs));
+      
+      // 次にタスクを挿入
+      const wbsWithMovedTask = insertTask(wbsWithoutTask);
+      
+      // WBSコードを再計算
+      const wbsWithRecalculatedCodes = recalculateWBSCodes(wbsWithMovedTask);
+      
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(wbsWithRecalculatedCodes);
+
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          wbs: recalculatedWBS,
+          project_info: {
+            ...state.project.project_info,
+            updated_at: new Date().toISOString().split('T')[0]
+          }
+        }
+      };
+    }
+
     default:
       return state;
   }
@@ -518,6 +603,13 @@ export function WBSProvider({ children }: WBSProviderProps) {
           historyType = 'BULK_UPDATE';
           description = `${state.selectedTaskIds.length}個のタスクを更新しました`;
           metadata.affectedCount = state.selectedTaskIds.length;
+          break;
+        case 'MOVE_TASK':
+          historyType = 'MOVE_TASK';
+          description = `タスクを移動しました`;
+          metadata.taskId = action.payload.taskId;
+          metadata.targetId = action.payload.targetId;
+          metadata.position = action.payload.position;
           break;
         default:
           return; // 履歴に記録しないアクション

@@ -223,4 +223,32 @@ export function recalculateParentTasks(tasks: WBSTask[]): WBSTask[] {
     }
     return task;
   });
+}
+
+// タスクが別のタスクの子孫かどうかを確認
+export function isDescendantOf(task: WBSTask, ancestorId: string): boolean {
+  if (task.id === ancestorId) return true;
+  
+  if (task.children) {
+    for (const child of task.children) {
+      if (isDescendantOf(child, ancestorId)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+// WBSコードを再計算する
+export function recalculateWBSCodes(tasks: WBSTask[], parentCode?: string): WBSTask[] {
+  return tasks.map((task, index) => {
+    const parentCodeForGeneration = parentCode ?? null;
+    const newWBSCode = generateWBSCode(parentCodeForGeneration, index);
+    return {
+      ...task,
+      wbs_code: newWBSCode,
+      children: task.children ? recalculateWBSCodes(task.children, newWBSCode) : task.children
+    };
+  });
 } 

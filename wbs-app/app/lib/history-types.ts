@@ -24,6 +24,9 @@ export interface HistoryEntry {
     taskIds?: string[];
     taskNames?: string[];
     affectedCount?: number;
+    taskId?: string;
+    targetId?: string;
+    position?: 'before' | 'after' | 'inside';
   };
 }
 

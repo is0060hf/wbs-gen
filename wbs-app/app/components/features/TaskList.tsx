@@ -3,10 +3,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
-import { ChevronRight, ChevronDown, Plus, Copy, Trash2, MoreVertical, Edit, Expand, Minimize2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, Copy, Trash2, MoreVertical, Edit, Expand, Minimize2, GripVertical } from 'lucide-react';
 import { TaskEditModal } from './TaskEditModal';
 import { TaskFilter, FilterOptions } from './TaskFilter';
 import { filterTasks, getUniqueAssignees, flattenTasks, getPriorityClass } from '@/app/lib/task-utils';
+import { useDraggable, useDroppable } from '@/app/components/ui/DragDropContext';
+import { isDescendantOf } from '@/app/lib/wbs-utils';
 
 interface TaskActionsProps {
   task: WBSTask;
@@ -165,6 +167,28 @@ function TaskItem({ task, level, isSelected, isExpanded = true, selectedTaskIds,
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(task.name);
 
+  // ドラッグ&ドロップ機能
+  const draggableProps = useDraggable(task.id, 'task', task);
+  const { canDrop, dropPosition, isOver, ...droppableProps } = useDroppable(
+    ['task'],
+    (draggedItem, position) => {
+      // 自分自身への移動は防ぐ
+      if (draggedItem.id === task.id) return;
+      
+      // 自分の子孫への移動は防ぐ
+      if (isDescendantOf(task, draggedItem.id)) return;
+      
+      dispatch({
+        type: 'MOVE_TASK',
+        payload: {
+          taskId: draggedItem.id,
+          targetId: task.id,
+          position
+        }
+      });
+    }
+  );
+
   const handleNameEdit = () => {
     if (editName.trim() && editName !== task.name) {
       dispatch({
@@ -180,15 +204,38 @@ function TaskItem({ task, level, isSelected, isExpanded = true, selectedTaskIds,
 
   const indentStyle = { paddingLeft: `${level * 24}px` };
 
+  // ドロップ位置のインジケーター用のスタイル
+  const dropIndicatorStyle = () => {
+    if (!isOver || !canDrop) return '';
+    
+    switch (dropPosition) {
+      case 'before':
+        return 'border-t-2 border-blue-500';
+      case 'after':
+        return 'border-b-2 border-blue-500';
+      case 'inside':
+        return 'bg-blue-50';
+      default:
+        return '';
+    }
+  };
+
   return (
     <>
       <div
-        className={`group flex items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50 ${
+        className={`group flex items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50 transition-colors ${
           isSelected ? 'bg-blue-50' : ''
-        }`}
+        } ${dropIndicatorStyle()}`}
         onClick={(e) => onToggleSelect(task.id, e.ctrlKey || e.metaKey)}
+        {...draggableProps}
+        {...droppableProps}
       >
         <div className="flex items-center flex-1" style={indentStyle}>
+          {/* ドラッグハンドル */}
+          <div className="cursor-move mr-2 opacity-0 group-hover:opacity-50 transition-opacity">
+            <GripVertical size={16} />
+          </div>
+          
           {task.children && task.children.length > 0 && (
             <button
               onClick={(e) => {
@@ -317,6 +364,30 @@ export function TaskList() {
     }
   }, [allTaskIds, expandedTaskIds.size]);
 
+  // ルートレベルへのドロップ用のuseDroppable
+  const { canDrop: canDropRoot, isOver: isOverRoot, ...rootDroppableProps } = useDroppable(
+    ['task'],
+    (draggedItem) => {
+      // 空のWBSの場合はドロップできない
+      if (wbs.length === 0) {
+        return;
+      }
+      
+      // ルートレベルの最後に追加
+      const lastRootTask = wbs[wbs.length - 1];
+      if (lastRootTask) {
+        dispatch({
+          type: 'MOVE_TASK',
+          payload: {
+            taskId: draggedItem.id,
+            targetId: lastRootTask.id,
+            position: 'after'
+          }
+        });
+      }
+    }
+  );
+
   const handleAddRootTask = () => {
     dispatch({ type: 'ADD_ROOT_TASK' });
   };
@@ -441,28 +512,33 @@ export function TaskList() {
               </div>
             </div>
             
-            {filteredTasks.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                {wbs.length === 0 
-                  ? 'タスクがありません。「ルートタスクを追加」ボタンからタスクを作成してください。'
-                  : 'フィルタリング条件に一致するタスクがありません。'}
-              </div>
-            ) : (
-              filteredTasks.map(task => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  level={0}
-                  isSelected={selectedTaskIds.includes(task.id)}
-                  isExpanded={expandedTaskIds.has(task.id)}
-                  selectedTaskIds={selectedTaskIds}
-                  expandedTaskIds={expandedTaskIds}
-                  onToggleSelect={handleToggleSelect}
-                  onToggleExpand={handleToggleExpand}
-                  onEditTask={setEditingTaskId}
-                />
-              ))
-            )}
+            <div
+              className={`min-h-[200px] ${isOverRoot && canDropRoot ? 'bg-blue-50' : ''}`}
+              {...rootDroppableProps}
+            >
+              {filteredTasks.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  {wbs.length === 0 
+                    ? 'タスクがありません。「ルートタスクを追加」ボタンからタスクを作成してください。'
+                    : 'フィルタリング条件に一致するタスクがありません。'}
+                </div>
+              ) : (
+                filteredTasks.map(task => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    level={0}
+                    isSelected={selectedTaskIds.includes(task.id)}
+                    isExpanded={expandedTaskIds.has(task.id)}
+                    selectedTaskIds={selectedTaskIds}
+                    expandedTaskIds={expandedTaskIds}
+                    onToggleSelect={handleToggleSelect}
+                    onToggleExpand={handleToggleExpand}
+                    onEditTask={setEditingTaskId}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
