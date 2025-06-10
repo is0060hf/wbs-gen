@@ -338,6 +338,26 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
   // 優先度による色分け（クリティカルパス考慮）
   const getPriorityColor = (task: WBSTask) => {
+    // 親タスクの場合は特別なスタイル
+    if (isParentTask(task)) {
+      if (highlightCriticalPath && criticalPath.has(task.id)) {
+        return 'bg-gradient-to-r from-orange-600 to-red-700 border-2 border-orange-400 shadow-lg';
+      }
+      // 親タスクは濃い目の色とグラデーション
+      switch (task.priority) {
+        case 'Must':
+          return 'bg-gradient-to-r from-red-600 to-red-700 border-2 border-red-400 shadow-md';
+        case 'Should':
+          return 'bg-gradient-to-r from-yellow-600 to-yellow-700 border-2 border-yellow-400 shadow-md';
+        case 'Could':
+          return 'bg-gradient-to-r from-green-600 to-green-700 border-2 border-green-400 shadow-md';
+        case 'Won\'t':
+          return 'bg-gradient-to-r from-gray-600 to-gray-700 border-2 border-gray-400 shadow-md';
+        default:
+          return 'bg-gradient-to-r from-blue-600 to-blue-700 border-2 border-blue-400 shadow-md';
+      }
+    }
+    
     // クリティカルパスの場合は特別な色
     if (highlightCriticalPath && criticalPath.has(task.id)) {
       return 'bg-gradient-to-r from-orange-500 to-red-600 border-2 border-orange-300';
@@ -459,6 +479,29 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
             Q ${midX} ${toY} ${toX - 8} ${toY}
             L ${toX} ${toY}`;
   };
+
+  // 各タスクの階層レベルとインデントを計算
+  const taskHierarchy = useMemo(() => {
+    const hierarchy = new Map<string, { level: number; parentId: string | null; childIndices: number[] }>();
+    
+    const processTask = (task: WBSTask, level: number = 0, parentId: string | null = null) => {
+      const taskIndex = flatTasks.findIndex(t => t.id === task.id);
+      hierarchy.set(task.id, { level, parentId, childIndices: [] });
+      
+      if (task.children && task.children.length > 0) {
+        const childIndices = task.children.map(child => {
+          const childIndex = flatTasks.findIndex(t => t.id === child.id);
+          processTask(child, level + 1, task.id);
+          return childIndex;
+        }).filter(idx => idx !== -1);
+        
+        hierarchy.get(task.id)!.childIndices = childIndices;
+      }
+    };
+    
+    tasks.forEach(task => processTask(task));
+    return hierarchy;
+  }, [tasks, flatTasks]);
 
   const handleReset = () => {
     setCurrentDate(new Date());
@@ -614,17 +657,28 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
               </svg>
             )}
 
-                          {flatTasks.map((task, index) => (
-                <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50" data-task-id={task.id}>
+                          {flatTasks.map((task, index) => {
+                const hierarchyInfo = taskHierarchy.get(task.id);
+                const isParent = isParentTask(task);
+                const level = hierarchyInfo?.level || 0;
+                
+                return (
+                <div key={task.id} className={`flex border-b hover:bg-gray-50 ${
+                  isParent ? 'bg-blue-50 border-blue-200' : level > 0 ? 'bg-blue-50/30' : ''
+                }` } data-task-id={task.id}>
                   {/* タスク名 - sticky positioning */}
-                  <div className="w-80 flex-shrink-0 p-3 border-r border-gray-200 sticky left-0 bg-white z-10">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{task.wbs_code}</span>
-                      <span className="text-sm truncate" title={task.name}>
+                  <div className={`w-80 flex-shrink-0 p-3 border-r sticky left-0 z-10 ${
+                    isParent ? 'border-blue-200 bg-blue-50' : level > 0 ? 'border-blue-100 bg-blue-50/30' : 'border-gray-200 bg-white'
+                  }`}>
+                    <div className="flex items-center gap-2" style={{ paddingLeft: `${level * 20}px` }}>
+                      <span className={`text-xs ${isParent ? 'text-blue-700 font-bold' : 'text-gray-500'}`}>
+                        {task.wbs_code}
+                      </span>
+                      <span className={`text-sm truncate ${isParent ? 'font-bold text-blue-900' : ''}`} title={task.name}>
                         {task.name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 mt-1">
+                    <div className="flex items-center gap-1 mt-1" style={{ paddingLeft: `${level * 20}px` }}>
                       <span className={`px-1.5 py-0.5 rounded text-xs ${
                         task.priority === 'Must' ? 'bg-red-100 text-red-700' :
                         task.priority === 'Should' ? 'bg-yellow-100 text-yellow-700' :
@@ -636,15 +690,32 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       {task.assignee && (
                         <span className="text-xs text-gray-600">{task.assignee}</span>
                       )}
+                      {isParent && (
+                        <span className="text-xs text-blue-600 ml-auto">📁 親タスク</span>
+                      )}
                     </div>
                   </div>
 
                 {/* タスクバー */}
-                <div className="p-2 relative" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
-                  <div className="relative h-6">
+                <div className={`p-2 relative ${isParent ? 'bg-blue-50' : level > 0 ? 'bg-blue-50/30' : ''}`} style={{ width: `${getChartWidth(displayDates.length)}px` }}>
+                  {/* 親タスクの範囲背景 */}
+                  {isParent && (
                     <div
-                      className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusPattern(task.status)} ${
-                        isParentTask(task) ? 'cursor-default' : 'cursor-move'
+                      className="absolute top-0 bottom-0 bg-blue-100 opacity-30 rounded"
+                      style={{
+                        left: getTaskBarStyle(task).left,
+                        width: getTaskBarStyle(task).width,
+                        height: '100%'
+                      }}
+                    />
+                  )}
+                  
+                  <div className={`relative ${isParent ? 'h-8' : 'h-6'}`}>
+                    <div
+                      className={`task-bar absolute ${
+                        isParent ? 'top-0 h-6' : 'top-1 h-4'
+                      } rounded ${getPriorityColor(task)} ${getStatusPattern(task.status)} ${
+                        isParent ? 'cursor-default' : 'cursor-move'
                       } hover:shadow-md transition-all duration-200 ${
                         dragState?.taskId === task.id ? 'shadow-lg ring-2 ring-blue-300' : ''
                       }`}
@@ -662,7 +733,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       tabIndex={0}
                       role="button"
                       aria-label={`${task.name}: ${task.start}から${task.end}まで。${
-                        isParentTask(task) ? '親タスクは子タスクから自動計算されます' : 'ドラッグして日程変更可能'
+                        isParent ? '親タスクは子タスクから自動計算されます' : 'ドラッグして日程変更可能'
                       }`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
@@ -672,7 +743,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       }}
                     >
                       {/* 左端のリサイズハンドル - 親タスクの場合は非表示 */}
-                      {!isParentTask(task) && (
+                      {!isParent && (
                         <div
                           className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-l transition-opacity"
                           onMouseDown={(e) => {
@@ -686,7 +757,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       )}
                       
                       {/* 右端のリサイズハンドル - 親タスクの場合は非表示 */}
-                      {!isParentTask(task) && (
+                      {!isParent && (
                         <div
                           className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-r transition-opacity"
                           onMouseDown={(e) => {
@@ -733,8 +804,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                         <div>{task.start} ～ {task.end}</div>
                         <div>進捗: {task.progress || 0}%</div>
                         <div className="text-gray-300 text-xs mt-1">
-                          {isParentTask(task) 
-                            ? '親タスクは子タスクから自動計算されます' 
+                          {isParent ? '親タスクは子タスクから自動計算されます' 
                             : 'ドラッグして日程変更 • 端をドラッグしてリサイズ'}
                         </div>
                       </div>
@@ -742,7 +812,8 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
             </div>
           </div>
         </div>
@@ -768,6 +839,13 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-gray-500 rounded" role="img" aria-label="Won't優先度"></div>
               <span>Won't</span>
+            </div>
+            
+            {/* 親タスクの凡例を追加 */}
+            <div className="mx-2 h-4 w-px bg-gray-300"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-3 bg-gradient-to-r from-blue-600 to-blue-700 border-2 border-blue-400 rounded shadow-sm" role="img" aria-label="親タスク"></div>
+              <span>親タスク</span>
             </div>
             
             {/* ステータス凡例を追加 */}
