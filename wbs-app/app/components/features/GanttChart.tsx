@@ -161,8 +161,12 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   }, [displayDates]);
 
   // ドラッグ開始
-  const handleMouseDown = useCallback((e: React.MouseEvent, task: WBSTask, dragType: 'start' | 'end' | 'move') => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, taskId: string, dragType: 'start' | 'end' | 'move') => {
     e.preventDefault();
+    
+    // 最新のタスクデータを取得
+    const task = flatTasks.find(t => t.id === taskId);
+    if (!task) return;
     
     // 親タスクの場合はドラッグを開始しない
     if (isParentTask(task)) {
@@ -174,10 +178,10 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       taskId: task.id,
       dragType,
       originalStart: task.start,
-      originalEnd: task.end || task.start,
-      originalDuration: task.duration_days || 0.5
+      originalEnd: task.end || calculateEndDate(task.start, task.duration_days),
+      originalDuration: task.duration_days
     });
-  }, []);
+  }, [flatTasks]);
 
   // ドラッグ中
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -220,12 +224,20 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
     // リアルタイムで更新（ローカル状態として表示のみ変更）
     const taskElement = document.querySelector(`[data-task-id="${dragState.taskId}"]`);
     if (taskElement) {
-      const tempTask = { ...flatTasks.find(t => t.id === dragState.taskId)!, start: newStart, end: newEnd };
-      const style = getTaskBarStyle(tempTask);
-      const barElement = taskElement.querySelector('.task-bar') as HTMLElement;
-      if (barElement) {
-        barElement.style.left = style.left;
-        barElement.style.width = style.width;
+      const currentTask = flatTasks.find(t => t.id === dragState.taskId);
+      if (currentTask) {
+        const tempTask = { 
+          ...currentTask, 
+          start: newStart, 
+          end: newEnd || calculateEndDate(newStart, newDuration),
+          duration_days: newDuration
+        };
+        const style = getTaskBarStyle(tempTask);
+        const barElement = taskElement.querySelector('.task-bar') as HTMLElement;
+        if (barElement) {
+          barElement.style.left = style.left;
+          barElement.style.width = style.width;
+        }
       }
     }
   }, [dragState, getDateFromMousePosition, flatTasks, getTaskBarStyle]);
@@ -578,7 +590,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                         dragState?.taskId === task.id ? 'shadow-lg ring-2 ring-blue-300' : ''
                       }`}
                       style={getTaskBarStyle(task)}
-                      onMouseDown={(e) => handleMouseDown(e, task, 'move')}
+                      onMouseDown={(e) => handleMouseDown(e, task.id, 'move')}
                       onClick={(e) => {
                         // ドラッグ中でない場合のみ編集モーダルを開く
                         if (!dragState?.isDragging) {
@@ -604,7 +616,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                           className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-l transition-opacity"
                           onMouseDown={(e) => {
                             e.stopPropagation();
-                            handleMouseDown(e, task, 'start');
+                            handleMouseDown(e, task.id, 'start');
                           }}
                           tabIndex={0}
                           role="button"
@@ -618,7 +630,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                           className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-r transition-opacity"
                           onMouseDown={(e) => {
                             e.stopPropagation();
-                            handleMouseDown(e, task, 'end');
+                            handleMouseDown(e, task.id, 'end');
                           }}
                           tabIndex={0}
                           role="button"
