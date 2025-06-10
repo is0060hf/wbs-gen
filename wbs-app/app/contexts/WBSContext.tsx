@@ -10,7 +10,9 @@ import {
   deepCopyTasks,
   findTaskById,
   findParentTask,
-  calculateEndDate
+  calculateEndDate,
+  recalculateParentTasks,
+  isParentTask
 } from '@/app/lib/wbs-utils';
 import { generateSampleProject } from '@/app/lib/sample-data';
 import { useHistory } from '@/app/hooks/useHistory';
@@ -122,11 +124,15 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
         });
       };
 
+      const updatedWBS = addChildToTask(state.project.wbs);
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: addChildToTask(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]
@@ -180,12 +186,14 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
 
       const updatedWBS = addSiblingToTask(state.project.wbs);
       const recalculatedWBS = recalculateWBSCodes(updatedWBS);
+      // 親タスクの値を再計算
+      const finalWBS = recalculateParentTasks(recalculatedWBS);
 
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: recalculatedWBS,
+          wbs: finalWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]
@@ -199,6 +207,16 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
       const updateTaskInTree = (tasks: WBSTask[]): WBSTask[] => {
         return tasks.map(task => {
           if (task.id === taskId) {
+            // 親タスクの場合、開始日、期間、進捗率の更新を無視
+            if (isParentTask(task)) {
+              const filteredUpdates = { ...updates };
+              delete filteredUpdates.start;
+              delete filteredUpdates.duration_days;
+              delete filteredUpdates.end;
+              delete filteredUpdates.progress;
+              return { ...task, ...filteredUpdates };
+            }
+            
             const updatedTask = { ...task, ...updates };
             // 期間が変更された場合、終了日を再計算
             if (updates.duration_days !== undefined || updates.start !== undefined) {
@@ -219,11 +237,15 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
         });
       };
 
+      const updatedWBS = updateTaskInTree(state.project.wbs);
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: updateTaskInTree(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]
@@ -248,11 +270,15 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
           });
       };
 
+      const updatedWBS = deleteTaskFromTree(state.project.wbs);
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: deleteTaskFromTree(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]
@@ -290,11 +316,15 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
         return result;
       };
 
+      const updatedWBS = duplicateInTree(state.project.wbs);
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: duplicateInTree(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]
@@ -324,11 +354,15 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
           });
       };
 
+      const updatedWBS = deleteSelectedTasks(state.project.wbs);
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: deleteSelectedTasks(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]
@@ -343,6 +377,16 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
       const updateSelectedTasks = (tasks: WBSTask[]): WBSTask[] => {
         return tasks.map(task => {
           if (state.selectedTaskIds.includes(task.id)) {
+            // 親タスクの場合、開始日、期間、進捗率の更新を無視
+            if (isParentTask(task)) {
+              const filteredUpdates = { ...updates };
+              delete filteredUpdates.start;
+              delete filteredUpdates.duration_days;
+              delete filteredUpdates.end;
+              delete filteredUpdates.progress;
+              return { ...task, ...filteredUpdates };
+            }
+            
             const updatedTask = { ...task, ...updates };
             // 期間が変更された場合、終了日を再計算
             if (updates.duration_days !== undefined || updates.start !== undefined) {
@@ -363,11 +407,15 @@ function wbsReducer(state: WBSState, action: WBSAction): WBSState {
         });
       };
 
+      const updatedWBS = updateSelectedTasks(state.project.wbs);
+      // 親タスクの値を再計算
+      const recalculatedWBS = recalculateParentTasks(updatedWBS);
+
       return {
         ...state,
         project: {
           ...state.project,
-          wbs: updateSelectedTasks(state.project.wbs),
+          wbs: recalculatedWBS,
           project_info: {
             ...state.project.project_info,
             updated_at: new Date().toISOString().split('T')[0]

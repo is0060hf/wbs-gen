@@ -5,6 +5,7 @@ import { useWBS } from '@/app/hooks/useWBS';
 import { WBSTask } from '@/app/lib/types';
 import { X, AlertTriangle } from 'lucide-react';
 import { flattenTasks, detectCircularDependencies } from '@/app/lib/task-utils';
+import { isParentTask } from '@/app/lib/wbs-utils';
 
 interface TaskEditModalProps {
   taskId: string;
@@ -15,6 +16,9 @@ export function TaskEditModal({ taskId, onClose }: TaskEditModalProps) {
   const { state, dispatch } = useWBS();
   const task = findTask(state.project.wbs, taskId);
   
+  // 親タスクかどうかを判定
+  const isParent = task ? isParentTask(task) : false;
+
   const [formData, setFormData] = useState<Partial<WBSTask>>({
     name: '',
     description: '',
@@ -191,18 +195,23 @@ export function TaskEditModal({ taskId, onClose }: TaskEditModalProps) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   開始日
+                  {isParent && <span className="text-xs text-gray-500 ml-1">(子タスクから自動計算)</span>}
                 </label>
                 <input
                   type="date"
                   value={formData.start}
                   onChange={(e) => setFormData({ ...formData, start: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isParent ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                   required
+                  disabled={isParent}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   期間（日）
+                  {isParent && <span className="text-xs text-gray-500 ml-1">(子タスクから自動計算)</span>}
                 </label>
                 <input
                   type="number"
@@ -210,8 +219,11 @@ export function TaskEditModal({ taskId, onClose }: TaskEditModalProps) {
                   onChange={(e) => setFormData({ ...formData, duration_days: parseFloat(e.target.value) || 0.5 })}
                   min="0.5"
                   step="0.5"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isParent ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                   required
+                  disabled={isParent}
                 />
               </div>
             </div>
@@ -221,6 +233,7 @@ export function TaskEditModal({ taskId, onClose }: TaskEditModalProps) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   進捗率 (%)
+                  {isParent && <span className="text-xs text-gray-500 ml-1">(子タスクから自動計算)</span>}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -229,7 +242,8 @@ export function TaskEditModal({ taskId, onClose }: TaskEditModalProps) {
                     onChange={(e) => handleProgressChange(parseInt(e.target.value))}
                     min="0"
                     max="100"
-                    className="flex-1"
+                    className={`flex-1 ${isParent ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={isParent}
                   />
                   <input
                     type="number"
@@ -237,7 +251,10 @@ export function TaskEditModal({ taskId, onClose }: TaskEditModalProps) {
                     onChange={(e) => handleProgressChange(parseInt(e.target.value) || 0)}
                     min="0"
                     max="100"
-                    className="w-16 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-16 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      isParent ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
+                    disabled={isParent}
                   />
                 </div>
               </div>

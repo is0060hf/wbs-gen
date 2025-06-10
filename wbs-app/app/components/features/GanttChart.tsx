@@ -8,6 +8,7 @@ import { useWBS } from '@/app/hooks/useWBS';
 import { identifyCriticalPath } from '@/app/lib/task-utils';
 import { Calendar, RotateCcw, GitBranch, Zap } from 'lucide-react';
 import { TaskEditModal } from './TaskEditModal';
+import { isParentTask } from '@/app/lib/wbs-utils';
 
 interface GanttChartProps {
   tasks?: WBSTask[];
@@ -162,6 +163,12 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   // ドラッグ開始
   const handleMouseDown = useCallback((e: React.MouseEvent, task: WBSTask, dragType: 'start' | 'end' | 'move') => {
     e.preventDefault();
+    
+    // 親タスクの場合はドラッグを開始しない
+    if (isParentTask(task)) {
+      return;
+    }
+    
     setDragState({
       isDragging: true,
       taskId: task.id,
@@ -565,7 +572,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 <div className="p-2 relative" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
                   <div className="relative h-6">
                     <div
-                      className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusPattern(task.status)} cursor-move hover:shadow-md transition-all duration-200 ${
+                      className={`task-bar absolute top-1 h-4 rounded ${getPriorityColor(task)} ${getStatusPattern(task.status)} ${
+                        isParentTask(task) ? 'cursor-default' : 'cursor-move'
+                      } hover:shadow-md transition-all duration-200 ${
                         dragState?.taskId === task.id ? 'shadow-lg ring-2 ring-blue-300' : ''
                       }`}
                       style={getTaskBarStyle(task)}
@@ -579,7 +588,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       }}
                       tabIndex={0}
                       role="button"
-                      aria-label={`${task.name}: ${task.start}から${task.end}まで。ドラッグして日程変更可能`}
+                      aria-label={`${task.name}: ${task.start}から${task.end}まで。${
+                        isParentTask(task) ? '親タスクは子タスクから自動計算されます' : 'ドラッグして日程変更可能'
+                      }`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
@@ -587,29 +598,33 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                         }
                       }}
                     >
-                      {/* 左端のリサイズハンドル */}
-                      <div
-                        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-l transition-opacity"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleMouseDown(e, task, 'start');
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label="開始日を変更"
-                      />
+                      {/* 左端のリサイズハンドル - 親タスクの場合は非表示 */}
+                      {!isParentTask(task) && (
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-l transition-opacity"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleMouseDown(e, task, 'start');
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          aria-label="開始日を変更"
+                        />
+                      )}
                       
-                      {/* 右端のリサイズハンドル */}
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-r transition-opacity"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleMouseDown(e, task, 'end');
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-label="終了日を変更"
-                      />
+                      {/* 右端のリサイズハンドル - 親タスクの場合は非表示 */}
+                      {!isParentTask(task) && (
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 hover:opacity-100 focus:opacity-100 hover:bg-blue-500 focus:bg-blue-500 rounded-r transition-opacity"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleMouseDown(e, task, 'end');
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          aria-label="終了日を変更"
+                        />
+                      )}
 
                       {/* 進捗表示 */}
                       {task.progress && task.progress > 0 && (
@@ -645,7 +660,9 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                         <div>{task.start} ～ {task.end}</div>
                         <div>進捗: {task.progress || 0}%</div>
                         <div className="text-gray-300 text-xs mt-1">
-                          ドラッグして日程変更 • 端をドラッグしてリサイズ
+                          {isParentTask(task) 
+                            ? '親タスクは子タスクから自動計算されます' 
+                            : 'ドラッグして日程変更 • 端をドラッグしてリサイズ'}
                         </div>
                       </div>
                     </div>

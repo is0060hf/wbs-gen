@@ -119,4 +119,108 @@ export function findParentTask(tasks: WBSTask[], targetId: string): WBSTask | nu
 // タスクツリーのディープコピー
 export function deepCopyTasks(tasks: WBSTask[]): WBSTask[] {
   return JSON.parse(JSON.stringify(tasks));
+}
+
+// 親タスクかどうかを判定
+export function isParentTask(task: WBSTask): boolean {
+  return !!(task.children && task.children.length > 0);
+}
+
+// 親タスクの値を子タスクから計算
+export function calculateParentTaskValues(task: WBSTask): { start: string; duration_days: number; end: string; progress: number } {
+  if (!isParentTask(task) || !task.children || task.children.length === 0) {
+    return {
+      start: task.start,
+      duration_days: task.duration_days,
+      end: task.end || calculateEndDate(task.start, task.duration_days),
+      progress: task.progress || 0
+    };
+  }
+
+  // 子タスクの開始日と終了日を取得
+  let earliestStart: Date | null = null;
+  let latestEnd: Date | null = null;
+  let totalProgress = 0;
+  let totalDuration = 0;
+
+  task.children.forEach(child => {
+    // 子タスクが親タスクの場合は再帰的に計算
+    let childStart: string;
+    let childEnd: string;
+    let childDuration: number;
+    let childProgress: number;
+    
+    if (isParentTask(child)) {
+      const parentValues = calculateParentTaskValues(child);
+      childStart = parentValues.start;
+      childEnd = parentValues.end;
+      childDuration = parentValues.duration_days;
+      childProgress = parentValues.progress;
+    } else {
+      childStart = child.start;
+      childEnd = child.end || calculateEndDate(child.start, child.duration_days);
+      childDuration = child.duration_days;
+      childProgress = child.progress || 0;
+    }
+    
+    const startDate = new Date(childStart);
+    const endDate = new Date(childEnd);
+    
+    if (!earliestStart || startDate < earliestStart) {
+      earliestStart = startDate;
+    }
+    if (!latestEnd || endDate > latestEnd) {
+      latestEnd = endDate;
+    }
+    
+    // 進捗率の計算（期間で重み付け）
+    totalDuration += childDuration;
+    totalProgress += childProgress * childDuration;
+  });
+
+  if (!earliestStart || !latestEnd) {
+    return {
+      start: task.start,
+      duration_days: task.duration_days,
+      end: task.end || calculateEndDate(task.start, task.duration_days),
+      progress: task.progress || 0
+    };
+  }
+
+  // 期間を計算（日数） - 0.5日単位で丸める
+  const durationInMs = (latestEnd as Date).getTime() - (earliestStart as Date).getTime();
+  const durationDays = Math.round((durationInMs / (24 * 60 * 60 * 1000) + 1) * 2) / 2;
+
+  // 加重平均で進捗率を計算
+  const averageProgress = totalDuration > 0 ? Math.round(totalProgress / totalDuration) : 0;
+
+  return {
+    start: (earliestStart as Date).toISOString().split('T')[0],
+    duration_days: durationDays,
+    end: (latestEnd as Date).toISOString().split('T')[0],
+    progress: averageProgress
+  };
+}
+
+// タスクツリー全体の親タスクを再計算
+export function recalculateParentTasks(tasks: WBSTask[]): WBSTask[] {
+  return tasks.map(task => {
+    if (isParentTask(task)) {
+      // 子タスクを先に再帰的に処理
+      const updatedChildren = task.children ? recalculateParentTasks(task.children) : [];
+      const updatedTask = { ...task, children: updatedChildren };
+      
+      // 親タスクの値を計算
+      const parentValues = calculateParentTaskValues(updatedTask);
+      
+      return {
+        ...updatedTask,
+        start: parentValues.start,
+        duration_days: parentValues.duration_days,
+        end: parentValues.end,
+        progress: parentValues.progress
+      };
+    }
+    return task;
+  });
 } 
