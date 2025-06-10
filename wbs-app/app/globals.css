@@ -76,3 +76,19 @@ body {
   transform: translateX(-50%);
   top: 0;
 }
+
+/* プログレスバーの追加（WCAGに配慮したデザイン） */
+@keyframes progress-animation {
+  0% { width: 0%; }
+  100% { width: var(--progress-width); }
+}
+
+/* スクロールバーを非表示にするクラス */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}

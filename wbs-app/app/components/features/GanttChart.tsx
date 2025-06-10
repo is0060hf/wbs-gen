@@ -21,6 +21,7 @@ interface DragState {
   originalStart: string;
   originalEnd: string;
   originalDuration: number;
+  hasMoved?: boolean;
 }
 
 export function GanttChart({ tasks: propTasks }: GanttChartProps) {
@@ -34,6 +35,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   
   const chartRef = useRef<HTMLDivElement>(null);
+  const chartBodyRef = useRef<HTMLDivElement>(null);
 
   const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
 
@@ -138,10 +140,10 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
 
   // マウス位置から日付を計算（日表示）
   const getDateFromMousePosition = useCallback((clientX: number) => {
-    if (!chartRef.current || displayDates.length === 0) return null;
+    if (!chartBodyRef.current || displayDates.length === 0) return null;
     
-    const rect = chartRef.current.getBoundingClientRect();
-    const scrollLeft = chartRef.current.scrollLeft; // スクロール位置を取得
+    const rect = chartBodyRef.current.getBoundingClientRect();
+    const scrollLeft = chartBodyRef.current.scrollLeft; // スクロール位置を取得
     const chartLeft = rect.left + CHART_CONSTANTS.LEFT_OFFSET;
     const relativeX = clientX - chartLeft + scrollLeft; // スクロール位置を考慮
     
@@ -180,13 +182,19 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       dragType,
       originalStart: task.start,
       originalEnd: task.end || calculateEndDate(task.start, task.duration_days),
-      originalDuration: task.duration_days
+      originalDuration: task.duration_days,
+      hasMoved: false
     });
   }, [flatTasks]);
 
   // ドラッグ中
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState?.isDragging || !dragState?.taskId) return;
+
+    // マウスが移動したことを記録
+    if (!dragState.hasMoved) {
+      setDragState(prev => prev ? { ...prev, hasMoved: true } : null);
+    }
 
     const newDate = getDateFromMousePosition(e.clientX);
     if (!newDate) return;
@@ -490,11 +498,11 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
       </div>
 
       {/* ガントチャート本体 */}
-      <div className="overflow-auto flex-1" ref={chartRef}>
-        <div style={{ minWidth: `${Math.max(CHART_CONSTANTS.MIN_CHART_WIDTH, CHART_CONSTANTS.LEFT_OFFSET + getChartWidth(displayDates.length))}px` }}>
-          {/* タイムライン ヘッダー */}
-          <div className="flex">
-            <div className="w-80 flex-shrink-0 bg-gray-50 border-b border-gray-200 p-3">
+      <div className="flex-1 flex flex-col overflow-hidden" ref={chartRef}>
+        {/* 固定ヘッダー */}
+        <div className="flex-shrink-0 overflow-x-auto scrollbar-hide">
+          <div className="flex" style={{ minWidth: `${Math.max(CHART_CONSTANTS.MIN_CHART_WIDTH, CHART_CONSTANTS.LEFT_OFFSET + getChartWidth(displayDates.length))}px` }}>
+            <div className="w-80 flex-shrink-0 bg-gray-50 border-b border-gray-200 p-3 sticky left-0 z-20">
               <div className="font-medium text-gray-700">タスク</div>
             </div>
             <div className="bg-gray-50 border-b border-gray-200" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
@@ -511,9 +519,19 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* タスク行 */}
-          <div className="relative">
+        {/* スクロール可能な本体 */}
+        <div className="flex-1 overflow-auto" ref={chartBodyRef} onScroll={(e) => {
+          // ヘッダーのスクロールを同期
+          const header = chartRef.current?.querySelector('.overflow-x-auto');
+          if (header) {
+            header.scrollLeft = e.currentTarget.scrollLeft;
+          }
+        }}>
+          <div style={{ minWidth: `${Math.max(CHART_CONSTANTS.MIN_CHART_WIDTH, CHART_CONSTANTS.LEFT_OFFSET + getChartWidth(displayDates.length))}px` }}>
+            {/* タスク行 */}
+            <div className="relative">
             {/* 現在日のライン */}
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
@@ -556,30 +574,30 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
               </svg>
             )}
 
-            {flatTasks.map((task, index) => (
-              <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50" data-task-id={task.id}>
-                {/* タスク名 */}
-                <div className="w-80 flex-shrink-0 p-3 border-r border-gray-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{task.wbs_code}</span>
-                    <span className="text-sm truncate" title={task.name}>
-                      {task.name}
-                    </span>
+                          {flatTasks.map((task, index) => (
+                <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50" data-task-id={task.id}>
+                  {/* タスク名 - sticky positioning */}
+                  <div className="w-80 flex-shrink-0 p-3 border-r border-gray-200 sticky left-0 bg-white z-10">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">{task.wbs_code}</span>
+                      <span className="text-sm truncate" title={task.name}>
+                        {task.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className={`px-1.5 py-0.5 rounded text-xs ${
+                        task.priority === 'Must' ? 'bg-red-100 text-red-700' :
+                        task.priority === 'Should' ? 'bg-yellow-100 text-yellow-700' :
+                        task.priority === 'Could' ? 'bg-green-100 text-green-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {task.priority}
+                      </span>
+                      {task.assignee && (
+                        <span className="text-xs text-gray-600">{task.assignee}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className={`px-1.5 py-0.5 rounded text-xs ${
-                      task.priority === 'Must' ? 'bg-red-100 text-red-700' :
-                      task.priority === 'Should' ? 'bg-yellow-100 text-yellow-700' :
-                      task.priority === 'Could' ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {task.priority}
-                    </span>
-                    {task.assignee && (
-                      <span className="text-xs text-gray-600">{task.assignee}</span>
-                    )}
-                  </div>
-                </div>
 
                 {/* タスクバー */}
                 <div className="p-2 relative" style={{ width: `${getChartWidth(displayDates.length)}px` }}>
@@ -593,8 +611,8 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                       style={getTaskBarStyle(task)}
                       onMouseDown={(e) => handleMouseDown(e, task.id, 'move')}
                       onClick={(e) => {
-                        // ドラッグ中でない場合のみ編集モーダルを開く
-                        if (!dragState?.isDragging) {
+                        // ドラッグが発生していない場合のみ編集モーダルを開く
+                        if (!dragState?.hasMoved) {
                           e.stopPropagation();
                           setEditingTaskId(task.id);
                         }
@@ -683,6 +701,7 @@ export function GanttChart({ tasks: propTasks }: GanttChartProps) {
                 </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       </div>
