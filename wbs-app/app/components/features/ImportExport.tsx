@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useWBS } from '@/app/hooks/useWBS';
 import { normalizeImportedProject } from '@/app/lib/wbs-utils';
-import { Upload, Download, FileText, Copy, Check } from 'lucide-react';
+import { Upload, Download, FileText, Copy, Check, Printer, Loader2 } from 'lucide-react';
 
 export function ImportExportButtons() {
   const { state, dispatch } = useWBS();
@@ -12,6 +12,7 @@ export function ImportExportButtons() {
   const [importText, setImportText] = useState('');
   const [copied, setCopied] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -76,6 +77,35 @@ export function ImportExportButtons() {
     URL.revokeObjectURL(url);
   };
 
+  const handlePdfExport = async () => {
+    setPdfLoading(true);
+    setImportError(null);
+    try {
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.project),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wbs-${state.project.project_info.name.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setImportError(`PDF出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const handleCopyToClipboard = async () => {
     const exportData = {
       ...state.project,
@@ -135,6 +165,15 @@ export function ImportExportButtons() {
         >
           {copied ? <Check size={16} /> : <Copy size={16} />}
           {copied ? 'コピー済み' : 'クリップボードにコピー'}
+        </button>
+        
+        <button
+          onClick={handlePdfExport}
+          disabled={pdfLoading}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {pdfLoading ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+          {pdfLoading ? 'PDF生成中...' : 'PDF出力'}
         </button>
       </div>
 
